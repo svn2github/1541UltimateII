@@ -14,41 +14,9 @@ ISE_VERSION	?= 13	# when not defined use highest version available
 
 export ISE_LOCATIONS_FILE_INCLUDED=yes
 
-ifeq ($(ISE_VERSION),13)
-    export MYXILINX=/cygdrive/c/Xilinx/13.1/ISE_DS/ISE
-    export XILINX=C:\\Xilinx\\13.1\\ISE_DS\\ISE
-    PLATFORM=nt
-endif
-
-ifeq ($(ISE_VERSION),12)
-    export MYXILINX=/cygdrive/c/Xilinx/12.1/ISE_DS/ISE
-    export XILINX=C:\\Xilinx\\12.1\\ISE_DS\\ISE
-    PLATFORM=nt
-endif
-
-ifeq ($(ISE_VERSION),11)
-    export MYXILINX=/usr/local/xilinx/11.5/ISE
-endif
-
-ifeq ($(ISE_VERSION),10w)
-    export MYXILINX=/cygdrive/c/Xilinx/10.1/ISE
-    export XILINX=C:\\Xilinx\\10.1\\ISE
-    PLATFORM=nt
-endif
-
-ifeq ($(ISE_VERSION),10)
-    export MYXILINX=/usr/local/Xilinx/11.1/ISE
-endif
-
-ifeq ($(ISE_VERSION),9)
-    export MYXILINX=/usr/local/Xilinx/11.1/ISE
-endif
-
-ifeq ($(ISE_VERSION),8)
-    export MYXILINX=/usr/local/Xilinx/11.1/ISE
-endif
-
-#export PATH			= $(MYXILINX)/bin/$(PLATFORM) $PATH
+export MYXILINX=/cygdrive/c/Xilinx/13.2/ISE_DS/ISE
+export XILINX=C:\\Xilinx\\13.2\\ISE_DS\\ISE
+PLATFORM=nt
 
 export LMC_HOME				+= $(MYXILINX)/smartmodel/$(PLATFORM)/installed_lin
 export LD_LIBRARY_PATH		+= $(MYXILINX)/bin/$(PLATFORM):/usr/X11R6/lib

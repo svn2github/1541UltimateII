@@ -24,7 +24,7 @@ export GLOBAL_INCS = $(strip $(shell pwd)/../../global_makefiles)
 
 TARGET 			:= boot_700a
 
-ISE_VERSION		:= 12
+ISE_VERSION		:= 13
 
 DESIGN_NAME 	:= $(TARGET)
 TOP_NAME    	:= $(TARGET)
