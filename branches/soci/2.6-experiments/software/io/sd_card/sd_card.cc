@@ -598,7 +598,7 @@ DRESULT SdCard :: get_drive_size(DWORD* drive_size)
 	SDIO_DATA = 0xff;
 	SDIO_DATA = 0xff;
 	
-    if((iob[0] & 0x03) == 0) { // type 1.0 CSD
+    if((iob[0] & 0xC0) == 0) { // type 1.0 CSD
     	c_size = iob[6] & 0x03; // bits 1..0
     	c_size <<= 10;
     	c_size += (WORD)iob[7]<<2;
