@@ -69,6 +69,8 @@
 #define VIC_REG(x)   *((volatile BYTE *)(C64_MEMORY_BASE + 0xD000 + x))
 #define CIA1_REG(x)  *((volatile BYTE *)(C64_MEMORY_BASE + 0xDC00 + x))
 #define CIA2_REG(x)  *((volatile BYTE *)(C64_MEMORY_BASE + 0xDD00 + x))
+#define CIA1_CRA     *((volatile BYTE *)(C64_MEMORY_BASE + 0xDC0E))
+#define CIA1_CRB     *((volatile BYTE *)(C64_MEMORY_BASE + 0xDC0F))
 #define SID_VOLUME   *((volatile BYTE *)(C64_MEMORY_BASE + 0xD418))
 #define SID_DUMMY    *((volatile BYTE *)(C64_MEMORY_BASE + 0xD43F))
 #define MEM_LOC(x)   *((volatile BYTE *)(C64_MEMORY_BASE + 0x0800 + x))
@@ -126,7 +128,7 @@ class C64 : public GenericHost, ObjectWithMenu, ConfigurableObject
     BYTE ram_backup[BACKUP_SIZE];
     BYTE screen_backup[COLOR_SIZE]; // only used now for vic state write
     BYTE color_backup[COLOR_SIZE];
-    BYTE cia_backup[5];
+    BYTE cia_backup[8];
     
     BYTE stop_mode;
     BYTE raster;
