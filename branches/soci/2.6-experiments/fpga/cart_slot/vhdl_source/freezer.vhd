@@ -21,29 +21,25 @@ port (
 end freezer;
 
 architecture gideon of freezer is
-    signal reset_in    : std_logic;
     signal wr_cnt      : integer range 0 to 3;
-    signal do_freeze   : std_logic;
-    signal do_freeze_d : std_logic;
 
     type t_state is (idle, triggered, enter_freeze, button);
     signal state : t_state;
 
 begin
     freeze_trig <= '1' when (state = triggered) else '0';
+    freeze_act <= '1' when (state = enter_freeze) else '0';
 
     process(clock)
     begin
         if rising_edge(clock) then
-            do_freeze   <= button_freeze;
-            do_freeze_d <= do_freeze;
-            reset_in <= reset or RST_in;
+            if reset='1' or RST_in='1' then -- reset
+                state <= button;
+            end if; 
 
-            if cpu_cycle_done='1' then
-                if cpu_write='1' then
-                    if wr_cnt/=3 then
-                        wr_cnt <= wr_cnt + 1;
-                    end if;
+            if cpu_cycle_done = '1' then
+                if (cpu_write = '1') and (state = triggered) then
+                    wr_cnt <= wr_cnt + 1;
                 else
                     wr_cnt <= 0;
                 end if;
@@ -51,36 +47,31 @@ begin
 
             case state is
             when idle =>
-                freeze_act <= '0';
-                if do_freeze_d='0' and do_freeze='1' then -- push
+                if button_freeze = '1' then -- wait for push
                     state <= triggered;
                 end if;
 
             when triggered =>
-                if wr_cnt=3 then
+                if unfreeze = '1' then -- abort, or ignore
+                    state <= button;
+                elsif wr_cnt = 3 then -- wait for 3 writes
                     state <= enter_freeze;
-                    freeze_act <= '1';
                 end if;
             
             when enter_freeze =>
-                if unfreeze='1' then
-                    freeze_act <= '0';
+                if unfreeze = '1' then -- wait for unfreeze
                     state <= button;
                 end if;
 
             when button =>
-                if do_freeze='0' then -- wait until button is not pressed anymore
+                if button_freeze = '0' then -- wait until button is not pressed anymore
                     state <= idle;
                 end if;
                 
             when others =>
-                state <= idle;
+                state <= button;
             end case;
             
-            if reset_in='1' then
-                state <= idle;
-                wr_cnt <= 0;
-            end if; 
         end if;
     end process;
    
