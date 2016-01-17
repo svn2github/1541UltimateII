@@ -30,7 +30,6 @@ port (
     phi2_recovered  : in  std_logic;
     phi2_tick       : in  std_logic;
     do_sample_addr  : in  std_logic;
-    do_sample_io    : in  std_logic;
     do_io_event     : in  std_logic;
     reu_dma_n       : in  std_logic := '1';
     cmd_if_freeze   : in  std_logic := '0';
