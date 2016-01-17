@@ -118,9 +118,6 @@ architecture Gideon of via6522 is
     signal pb_latch_ready   : std_logic := '0';
     signal pa_latch_ready   : std_logic := '0';
     
-    signal write_t1c_h      : std_logic;
-    signal write_t2c_h      : std_logic;
-
     signal ca1_c, ca2_c     : std_logic;
     signal cb1_c, cb2_c     : std_logic;
     signal ca1_d, ca2_d     : std_logic;
@@ -128,14 +125,26 @@ architecture Gideon of via6522 is
     
     signal set_ca2_low      : std_logic;
     signal set_cb2_low      : std_logic;
+
+    -- tons of flip-flops, but this reduces the logic quite much.
+    type registers is array(integer range <>) of std_logic_vector(7 downto 0);
+    signal regs             : registers(0 to 15) := (others => X"00");
+    type boolean_vector is array (natural range <>) of boolean;
+    signal selector         : boolean_vector(0 to 15);
 begin
+    process(clock)
+    begin -- this will be shared for both VIAs!
+        if rising_edge(clock) then            
+            for i in 0 to 15 loop
+                selector(i) <= (unsigned(addr) = i);
+            end loop;
+        end if;
+    end process;
+
     irq <= irq_out;
     
     irq_out <= '0' when (irq_flags and irq_mask) = "0000000" else '1';
     
-    write_t1c_h <= '1' when addr = X"5" and wen='1' else '0';
-    write_t2c_h <= '1' when addr = X"9" and wen='1' else '0';
-
 --    input latches
     ira <= port_a_i when pa_latch_ready='0';
     irb <= port_b_i when pb_latch_ready='0';
@@ -154,7 +163,8 @@ begin
     cb2_t <= cb2_is_output when serport_en='0' else shift_dir;
     cb2_o <= hs_cb2_o      when serport_en='0' else ser_cb2_o;
 
-    process(clock)
+    process(clock, regs)
+        variable output : std_logic_vector(7 downto 0);
     begin
         if rising_edge(clock) then            
             -- CA1/CA2/CB1/CB2 edge detect flipflops
@@ -167,8 +177,6 @@ begin
             ca2_d <= ca2_c;
             cb1_d <= cb1_c;
             cb2_d <= cb2_c;
-
-            
 
             -- CA2 output logic
             case ca2_out_mode is
@@ -237,158 +245,143 @@ begin
             -- Interrupt logic
             irq_flags <= irq_flags or irq_events;
             
-            -- Writes --
-            if wen='1' then
-                case addr is
-                when X"0" => -- ORB
+            regs <= (others => X"00");
+            if selector(0) then -- ORB
+                --Port B reads its own output register for pins set to output.
+                regs(0) <= ((pio_i.prb(7) and (pio_i.ddrb(7) or tmr_a_output_en)) or (irb(7) and not (pio_i.ddrb(7) or tmr_a_output_en))) &
+                           ((pio_i.prb(6 downto 0) and pio_i.ddrb(6 downto 0)) or (irb(6 downto 0) and not pio_i.ddrb(6 downto 0)));
+                if wen='1' then
                     pio_i.prb <= data_in;
+                end if;
+                if wen='1' or ren='1' then
                     if cb2_no_irq_clr='0' then
                         cb2_flag <= '0';
                     end if;
                     cb1_flag <= '0';
-                
-                when X"1" => -- ORA
+                end if;
+            end if;
+
+            if selector(1) then -- ORA
+                regs(1) <= ira;
+                if wen='1' then
                     pio_i.pra <= data_in;
+                end if;
+                if wen='1' or ren='1' then
                     if ca2_no_irq_clr='0' then
                         ca2_flag <= '0';
                     end if;
                     ca1_flag <= '0';
-                    
-                when X"2" => -- DDRB
+                end if;
+            end if;
+
+            if selector(2) then -- DDRB
+                regs(2) <= pio_i.ddrb;
+                if wen='1' then
                     pio_i.ddrb <= data_in;
-                
-                when X"3" => -- DDRA
+                end if;
+            end if;
+
+            if selector(3) then -- DDRA
+                regs(3) <= pio_i.ddra;
+                if wen='1' then
                     pio_i.ddra <= data_in;
-                    
-                when X"4" => -- TA LO counter (write=latch)
+                end if;
+            end if;
+
+            if selector(4) then -- TA LO counter (write=latch)
+                regs(4) <= timer_a_count(7 downto 0);
+                if wen='1' then
                     timer_a_latch(7 downto 0) <= data_in;
-                    
-                when X"5" => -- TA HI counter
+                end if;
+                if ren='1' then
+                    timer_a_flag <= '0';
+                end if;
+            end if;
+
+            if selector(5) then -- TA HI counter
+                regs(5) <= timer_a_count(15 downto 8);
+                if wen='1' then
                     timer_a_latch(15 downto 8) <= data_in;
                     timer_a_flag <= '0';
-                    
-                when X"6" => -- TA LO latch
+                end if;
+            end if;
+
+            if selector(6) then -- TA LO latch
+                regs(6) <= timer_a_latch(7 downto 0);
+                if wen='1' then
                     timer_a_latch(7 downto 0) <= data_in;
-                    
-                when X"7" => -- TA HI latch
+                end if;
+            end if;
+
+            if selector(7) then -- TA HI latch
+                regs(7) <= timer_a_latch(15 downto 8);
+                if wen='1' then
                     timer_a_latch(15 downto 8) <= data_in;
-                    
-                when X"8" => -- TB LO latch
+                end if;
+            end if;
+
+            if selector(8) then -- TB LO latch
+                regs(8) <= timer_b_count(7 downto 0);
+                if wen='1' then
                     timer_b_latch(7 downto 0) <= data_in;
-                    
-                when X"9" => -- TB HI counter
+                end if;
+                if ren='1' then
                     timer_b_flag <= '0';
-                
-                when X"A" => -- Serial port
+                end if;
+            end if;
+
+            if selector(9) then -- TB HI counter
+                regs(9) <= timer_b_count(15 downto 8);
+                if wen='1' then
+                    timer_b_flag <= '0';
+                end if;
+            end if;
+
+            if selector(10) then -- Serial port
+                regs(10) <= shift_reg;
+                if wen='1' or ren='1' then
                     serial_flag <= '0';
-                    
-                when X"B" => -- ACR (Auxiliary Control Register)
+                end if;
+            end if;
+
+            if selector(11) then -- ACR (Auxiliary Control Register)
+                regs(11) <= acr;
+                if wen='1' then
                     acr <= data_in;
-                    
-                when X"C" => -- PCR (Peripheral Control Register)
+                end if;
+            end if;
+
+            if selector(12) then -- PCR (Peripheral Control Register)
+                regs(12) <= pcr;
+                if wen='1' then
                     pcr <= data_in;
-                                    
-                when X"D" => -- IFR
+                end if;
+            end if;
+
+            if selector(13) then -- IFR
+                regs(13) <= irq_out & irq_flags;
+                if wen='1' then
                     irq_flags <= irq_flags and not data_in(6 downto 0);
-                    
-                when X"E" => -- IER
+                end if;
+            end if;
+
+            if selector(14) then -- IER
+                regs(14) <= '0' & irq_mask;
+                if wen='1' then
                     if data_in(7)='1' then -- set
                         irq_mask <= irq_mask or data_in(6 downto 0);
                     else -- clear
                         irq_mask <= irq_mask and not data_in(6 downto 0);
                     end if;
-                
-                when X"F" => -- ORA no handshake
-                    pio_i.pra <= data_in;
-                
-                when others =>
-                    null;
-                end case;
+                end if;
             end if;
-            
-            -- Reads --
-            
-            case addr is
-            when X"0" => -- ORB
-                --Port B reads its own output register for pins set to output.
-                data_out(0) <= (pio_i.prb(0) and pio_i.ddrb(0)) or (irb(0) and not pio_i.ddrb(0));
-                data_out(1) <= (pio_i.prb(1) and pio_i.ddrb(1)) or (irb(1) and not pio_i.ddrb(1));
-                data_out(2) <= (pio_i.prb(2) and pio_i.ddrb(2)) or (irb(2) and not pio_i.ddrb(2));
-                data_out(3) <= (pio_i.prb(3) and pio_i.ddrb(3)) or (irb(3) and not pio_i.ddrb(3));
-                data_out(4) <= (pio_i.prb(4) and pio_i.ddrb(4)) or (irb(4) and not pio_i.ddrb(4));
-                data_out(5) <= (pio_i.prb(5) and pio_i.ddrb(5)) or (irb(5) and not pio_i.ddrb(5));
-                data_out(6) <= (pio_i.prb(6) and pio_i.ddrb(6)) or (irb(6) and not pio_i.ddrb(6));
-                data_out(7) <= (pio_i.prb(7) and (pio_i.ddrb(7) or tmr_a_output_en)) or (irb(7) and not (pio_i.ddrb(7) or tmr_a_output_en));
-                if cb2_no_irq_clr='0' and ren='1' then
-                    cb2_flag <= '0';
-                end if;
-                if ren='1' then
-                    cb1_flag <= '0';
-                end if;
-                                            
-            when X"1" => -- ORA
-                data_out <= ira;
-                if ca2_no_irq_clr='0' and ren='1' then
-                    ca2_flag <= '0';
-                end if;
-                if ren='1' then
-                    ca1_flag <= '0';
-                end if;
-                
-            when X"2" => -- DDRB
-                data_out <= pio_i.ddrb;
-            
-            when X"3" => -- DDRA
-                data_out <= pio_i.ddra;
-                
-            when X"4" => -- TA LO counter
-                data_out <= timer_a_count(7 downto 0);
-                if ren='1' then
-                    timer_a_flag <= '0';
-                end if;
-                
-            when X"5" => -- TA HI counter
-                data_out <= timer_a_count(15 downto 8);
-                
-            when X"6" => -- TA LO latch
-                data_out <= timer_a_latch(7 downto 0);
-                
-            when X"7" => -- TA HI latch
-                data_out <= timer_a_latch(15 downto 8);
-                
-            when X"8" => -- TA LO counter
-                data_out <= timer_b_count(7 downto 0);
-                if ren='1' then
-                    timer_b_flag <= '0';
-                end if;
-                
-            when X"9" => -- TA HI counter
-                data_out <= timer_b_count(15 downto 8);
 
-            when X"A" => -- SR
-                data_out  <= shift_reg;
-                if ren='1' then
-                    serial_flag <= '0';
+            if selector(15) then -- ORA no handshake
+                regs(15) <= ira;
+                if wen='1' then
+                    pio_i.pra <= data_in;
                 end if;
-
-            when X"B" => -- ACR
-                data_out  <= acr;
-                
-            when X"C" => -- PCR
-                data_out  <= pcr;
-                
-            when X"D" => -- IFR
-                data_out  <= irq_out & irq_flags;
-                
-            when X"E" => -- IER
-                data_out  <= '0' & irq_mask;
-                
-            when X"F" => -- ORA
-                data_out  <= ira;
-
-            when others =>
-                null;
-            end case;
+            end if;
             
             if reset='1' then
                 pio_i         <= pio_default;
@@ -404,12 +397,19 @@ begin
                 timer_b_latch  <= latch_reset_pattern(7 downto 0);
             end if;
         end if;
+
+        output := regs(0);
+        for i in 1 to 15 loop
+            output := output or regs(i);
+        end loop;
+        data_out <= output;
     end process;
+
 
     -- PIO Out select --
     port_a_o             <= pio_i.pra;
     port_b_o(6 downto 0) <= pio_i.prb(6 downto 0);    
-    port_b_o(7) <= pio_i.prb(7) when tmr_a_output_en='0' else timer_a_out;
+    port_b_o(7)          <= pio_i.prb(7) when tmr_a_output_en='0' else timer_a_out;
     
     port_a_t             <= pio_i.ddra;
     port_b_t(6 downto 0) <= pio_i.ddrb(6 downto 0);
@@ -453,7 +453,7 @@ begin
                     end if;                    
                 end if;
                 
-                if write_t1c_h = '1' then
+                if selector(5) and wen='1' then
                     timer_a_out   <= '0';
                     timer_a_count <= data_in & timer_a_latch(7 downto 0);
                     timer_a_reload <= '0';
@@ -520,7 +520,7 @@ begin
                     end if;
                 end if;
                 
-                if write_t2c_h = '1' then
+                if selector(9) and wen='1' then
                     timer_b_count <= data_in & timer_b_latch(7 downto 0);
                     timer_b_reload <= '0';
                     timer_b_post_oneshot <= '0';
