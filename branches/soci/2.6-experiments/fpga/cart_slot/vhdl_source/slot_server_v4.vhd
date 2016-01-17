@@ -391,7 +391,6 @@ begin
         phi2_recovered  => phi2_recovered,
         phi2_tick       => phi2_tick_i,
         do_sample_addr  => do_sample_addr,
-        do_sample_io    => do_sample_io,
         do_io_event     => do_io_event,
         reu_dma_n       => reu_dma_n,
         cmd_if_freeze   => cmd_if_freeze,
