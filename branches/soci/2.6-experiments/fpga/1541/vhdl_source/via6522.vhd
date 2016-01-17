@@ -113,10 +113,7 @@ architecture Gideon of via6522 is
     alias ca2_out_mode      : std_logic_vector(1 downto 0) is pcr(2 downto 1);
     alias ca1_edge_select   : std_logic is pcr(0);
     
-    signal ira, irb         : std_logic_vector(7 downto 0) := (others => '0');
-    
-    signal pb_latch_ready   : std_logic := '0';
-    signal pa_latch_ready   : std_logic := '0';
+    signal ira, irb         : std_logic_vector(7 downto 0) := (others => '1');
     
     signal ca1_c, ca2_c     : std_logic;
     signal cb1_c, cb2_c     : std_logic;
@@ -146,13 +143,29 @@ begin
     irq_out <= '0' when (irq_flags and irq_mask) = "0000000" else '1';
     
 --    input latches
-    ira <= port_a_i when pa_latch_ready='0';
-    irb <= port_b_i when pb_latch_ready='0';
-    pa_latch_ready <= '1' when (ca1_event='1') and (pa_latch_en='1') and (pa_latch_ready='0') else
-        '0' when (pa_latch_en='0') or (ren='1' and addr=X"1");
-    pb_latch_ready <= '1' when (cb1_event='1') and (pb_latch_en='1') and (pb_latch_ready='0') else
-        '0' when (pb_latch_en='0') or (ren='1' and addr=X"0");
-
+    process(clock)
+        variable pb_latch_ready : std_logic := '0';
+        variable pa_latch_ready : std_logic := '0';
+    begin
+        if rising_edge(clock) then            
+            if (ca1_event='1') and (pa_latch_en='1') and (pa_latch_ready='0') then
+                pa_latch_ready := '1';
+            elsif (pa_latch_en='0') or (ren='1' and addr=X"1") then
+                pa_latch_ready := '0';
+            end if;
+            if (cb1_event='1') and (pb_latch_en='1') and (pb_latch_ready='0') then
+                pb_latch_ready := '1';
+            elsif (pb_latch_en='0') or (ren='1' and addr=X"0") then
+                pb_latch_ready := '0';
+            end if;
+            if pa_latch_ready='0' then
+                ira <= port_a_i;
+            end if;
+            if pb_latch_ready='0' then
+                irb <= port_b_i;
+            end if;
+        end if;
+    end process;
 
     ca1_event <= (ca1_c xor ca1_d) and (ca1_d xor ca1_edge_select);
     ca2_event <= (ca2_c xor ca2_d) and (ca2_d xor ca2_edge_select);
