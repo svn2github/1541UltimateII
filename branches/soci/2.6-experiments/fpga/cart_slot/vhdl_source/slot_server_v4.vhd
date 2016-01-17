@@ -89,6 +89,7 @@ architecture structural of slot_server_v4 is
     signal do_io_event     : std_logic;
     signal do_probe_end    : std_logic;
     signal timing_inhibit  : std_logic;
+    signal serve_vic       : std_logic := '0';
 
     signal slave_dout      : std_logic_vector(7 downto 0);
     signal slave_dtri      : std_logic := '0';
@@ -110,8 +111,8 @@ architecture structural of slot_server_v4 is
 
     -- interface with freezer (cartridge) logic
     signal serve_enable    : std_logic := '0'; -- from cartridge emulation logic
-    signal serve_vic       : std_logic := '0';
     signal serve_rom       : std_logic := '0'; -- ROML or ROMH
+    signal serve_empty     : std_logic := '0'; -- Ultimax empty
     signal serve_io1       : std_logic := '0'; -- IO1n
     signal serve_io2       : std_logic := '0'; -- IO2n
     signal allow_write     : std_logic := '0';
@@ -139,6 +140,7 @@ architecture structural of slot_server_v4 is
     signal irq_n            : std_logic := '1';
     signal exrom_n          : std_logic := '1';
     signal game_n           : std_logic := '1';
+    signal game_n_or        : std_logic := '0';
 
     signal irq_oc, nmi_oc, rst_oc, dma_oc, exrom_oc, game_oc    : std_logic;
 
@@ -317,7 +319,6 @@ begin
         GAMEn           => GAMEn,
         EXROMn          => EXROMn,
         RWn             => RWn,
-        BA              => BA,
         ADDRESS         => ADDRESS,
         DATA_in         => DATA,
         DATA_out        => slave_dout,
@@ -338,17 +339,20 @@ begin
         reset_out       => actual_c64_reset,
         
         -- timing inputs
+        aec_recovered   => aec_recovered,    
         phi2_tick       => phi2_tick_i,
         do_sample_addr  => do_sample_addr,
         do_sample_io    => do_sample_io,
         do_io_event     => do_io_event,
         do_probe_end    => do_probe_end,
+        serve_vic       => serve_vic,
     
         -- interface with freezer (cartridge) logic
         allow_serve     => allow_serve,
-        serve_rom       => serve_rom, -- ROML or ROMH
-        serve_io1       => serve_io1, -- IO1n
-        serve_io2       => serve_io2, -- IO2n
+        serve_rom       => serve_rom,   -- ROML or ROMH
+        serve_empty     => serve_empty, -- Ultimax empty
+        serve_io1       => serve_io1,   -- IO1n
+        serve_io2       => serve_io2,   -- IO2n
         allow_write     => allow_write,
 
         -- kernal emulation
@@ -432,8 +436,10 @@ begin
         reset           => reset,
         RST_in          => reset_button,
         c64_reset       => control.c64_reset,
+        phi2_recovered  => phi2_recovered,
+        aec_recovered   => aec_recovered,    
+        mem_rack        => mem_rack_slot,
 
-        ethernet_enable => control.eth_enable,
         freeze_trig     => freeze_trig,
         freeze_act      => freeze_act, 
         unfreeze        => unfreeze,
@@ -441,16 +447,24 @@ begin
         cart_logic      => control.cartridge_type,
         cart_kill       => control.cartridge_kill,
         epyx_timeout    => epyx_timeout,
+        ata_err         => control.ata_err,
+        ata_drq         => control.ata_drq,
+        ata_drdy        => control.ata_drdy,
+        ata_bsy         => control.ata_bsy,
+        ata_data        => status.ata_data,
+        ata_cmd         => status.ata_cmd,
+        ata_rst         => status.ata_rst,
 
         slot_req        => slot_req,
         slot_resp       => slot_resp_cart,
 
         mem_addr        => mem_req_slot.address, 
+        mem_rwn         => mem_req_slot.read_writen,
         serve_enable    => serve_enable,
-        serve_vic       => serve_vic,
-        serve_rom       => serve_rom, -- ROML or ROMH
-        serve_io1       => serve_io1, -- IO1n
-        serve_io2       => serve_io2, -- IO2n
+        serve_rom       => serve_rom,   -- ROML or ROMH
+        serve_empty     => serve_empty, -- Ultimax empty
+        serve_io1       => serve_io1,   -- IO1n
+        serve_io2       => serve_io2,   -- IO2n
         allow_write     => allow_write,
         kernal_area     => kernal_area,
         kernal_enable   => control.kernal_enable,
@@ -459,6 +473,7 @@ begin
         nmi_n           => nmi_n,
         exrom_n         => exrom_n,
         game_n          => game_n,
+        game_n_or       => game_n_or,
     
         CART_LEDn       => cart_led_n );
 
@@ -701,9 +716,10 @@ begin
     end process;
 
     ADDRESS(7 downto 0)  <= address_out(7 downto 0)  when address_tri_l='1' else (others => 'Z');
-    ADDRESS(12 downto 8) <= address_out(12 downto 8) when address_tri_h='1' else (others => 'Z');
-    ADDRESS(15 downto 13) <= "101" when (kernal_addr_out='1' and kernal_probe='1') else
-                             address_out(15 downto 13) when address_tri_h='1' else (others => 'Z');
+    ADDRESS(13 downto 8) <= address_out(13 downto 8) when address_tri_h='1' else (others => 'Z');
+    ADDRESS(15)          <= address_out(15) when address_tri_h='1' else 'Z';
+    ADDRESS(14)          <= '0' when (kernal_addr_out='1' and kernal_probe='1') else
+                             address_out(14) when address_tri_h='1' else 'Z';
 
     RWn  <= rwn_out when rwn_tri='1' else 'Z';
 
@@ -717,8 +733,8 @@ begin
                          (control.c64_reset='1') else '1';
     dma_oc  <= '0' when (dma_n='0' or kernal_probe='1') else '1';
     -- dma_oc  <= '0' when (dma_n='0') else '1';
-    
-    process(control, serve_enable, exrom_n, game_n, force_ultimax, kernal_probe)
+
+    process(control, serve_enable, exrom_n, game_n, game_n_or, force_ultimax, kernal_probe)
     begin
         exrom_oc <= '1';
         game_oc  <= '1';
@@ -727,16 +743,16 @@ begin
         elsif kernal_probe = '1' then
             game_oc <= '0';
             exrom_oc <= '0';
-        else
-            if (serve_enable='1' and exrom_n='0') then
+        elsif serve_enable = '1' then
+            if exrom_n = '0' then
                 exrom_oc <= '0';
             end if;
-            if (serve_enable='1' and game_n='0') then
-                game_oc <= '0';
+            if game_n = '0' then
+                game_oc <= game_n_or;
             end if;
         end if;
     end process;
-    
+
     irq_push: entity work.oc_pusher port map(clock => clock, sig_in => irq_oc, oc_out => IRQn);
     nmi_push: entity work.oc_pusher port map(clock => clock, sig_in => nmi_oc, oc_out => NMIn);
     rst_push: entity work.oc_pusher port map(clock => clock, sig_in => rst_oc, oc_out => RSTn);

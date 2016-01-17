@@ -23,7 +23,7 @@
 #define FLASH_ID_RR38PAL    0x44
 #define FLASH_ID_SS5PAL     0x45
 #define FLASH_ID_AR5NTSC    0x46
-#define FLASH_ID_RR38NTSC   0x47
+#define FLASH_ID_IDEDOS     0x47
 #define FLASH_ID_SS5NTSC    0x48
 #define FLASH_ID_TAR_PAL    0x49
 #define FLASH_ID_TAR_NTSC   0x4A

@@ -187,6 +187,7 @@ begin
         g_vic_copper    => false,
         g_video_overlay => false,
         g_sampler       => false,
+        g_ata           => true,
         g_analyzer      => false )
     port map (
         -- globals

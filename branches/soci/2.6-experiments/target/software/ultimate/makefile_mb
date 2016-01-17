@@ -46,6 +46,7 @@ VPATH     = $(PATH_SW)/application \
 			$(PATH_SW)/io/command_interface \
 			$(PATH_SW)/io/copper \
 			$(PATH_SW)/6502 \
+			$(PATH_SW)/ata \
 			$(ROMS)
 
 INCLUDES =  $(wildcard $(addsuffix /*.h, $(VPATH)))
@@ -127,6 +128,7 @@ SRCS_CC	 =  stream.cc \
 			context_menu.cc \
 			task_menu.cc \
 			audio_select.cc \
+			ata.cc \
 			$(PRJ).cc
 
 ####			copper.cc \

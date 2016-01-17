@@ -55,6 +55,7 @@ struct t_cart {
 #define CART_EPYX      8
 #define CART_FINAL3    9
 #define CART_SYSTEM3   10
+#define CART_IDEDOS    11
 
 const struct t_cart c_recognized_carts[] = {
     {  0, CART_NORMAL,    "Normal cartridge" },
@@ -80,6 +81,7 @@ const struct t_cart c_recognized_carts[] = {
     { 20, CART_SUPERSNAP, "Super Snapshot 5" },
     { 21, CART_NOT_IMPL,  "COMAL 80" },
     { 32, CART_EASYFLASH, "EasyFlash" },
+    { 39, CART_IDEDOS,     "IDEDOS" },
     { 0xFFFF, 0xFFFF, "" } }; 
     
 
@@ -242,7 +244,7 @@ bool FileTypeCRT :: read_chip_packet(File *f)
         if((type_select == CART_OCEAN)||(type_select == CART_EASYFLASH)||(type_select == CART_DOMARK)||(type_select == CART_SYSTEM3))
             split = true;
 
-    DWORD mem_addr = ((DWORD)C64_CARTRIDGE_RAM_BASE) << 16;
+    DWORD mem_addr = ((DWORD)C64_CARTRIDGE_ROM_BASE) << 16;
     if(split)
         mem_addr += 0x2000 * DWORD(bank);
     else
@@ -293,6 +295,7 @@ bool FileTypeCRT :: read_chip_packet(File *f)
     constant c_ocean256     : X"B";
     constant c_easy_flash   : X"C";
     constant c_epyx         : X"E";
+    constant c_idedos       : X"F";
 */
 
 void FileTypeCRT :: configure_cart(void)
@@ -352,7 +355,7 @@ void FileTypeCRT :: configure_cart(void)
 //                C64_CARTRIDGE_TYPE = 0x0B; // Ocean 256K
 //                if(!load_at_a000) { // error! There is no data for upper range
 //                    printf("Fixing Ocean 256, by copying second 128K to A000 range\n");
-//                    DWORD mem_base = ((DWORD)C64_CARTRIDGE_RAM_BASE) << 16;
+//                    DWORD mem_base = ((DWORD)C64_CARTRIDGE_ROM_BASE) << 16;
 //                    memcpy((void *)(mem_base + 512*1024), (void *)(mem_base + 128*1024), 128*1024);
 //                }
 //            } else {
@@ -362,7 +365,7 @@ void FileTypeCRT :: configure_cart(void)
             if (load_at_a000) {
                 C64_CARTRIDGE_TYPE = 0x0B; // Ocean 256K
             } else {
-//                DWORD mem_base = ((DWORD)C64_CARTRIDGE_RAM_BASE) << 16;
+//                DWORD mem_base = ((DWORD)C64_CARTRIDGE_ROM_BASE) << 16;
 //                memcpy((void *)(mem_base + 256*1024), (void *)(mem_base + 0*1024), 256*1024);
                 C64_CARTRIDGE_TYPE = 0x0A; // Ocean 128K/512K
             }                
@@ -381,6 +384,10 @@ void FileTypeCRT :: configure_cart(void)
             break;
         case CART_SYSTEM3:
             C64_CARTRIDGE_TYPE = 0x08; // System3
+            break;
+        case CART_IDEDOS:
+            C64_CARTRIDGE_TYPE = 0x0F; // IDEDOS
+            break;
         default:
             break;
     }

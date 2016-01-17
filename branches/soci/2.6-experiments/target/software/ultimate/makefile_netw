@@ -56,6 +56,7 @@ VPATH     = $(PATH_SW)/application \
 			$(PATH_SW)/ModPlayer_16k \
 			$(PATH_SW)/lwip-1.4.1/src/include \
 			$(PATH_SW)/lwip-1.4.1/src/include/ipv4 \
+			$(PATH_SW)/ata \
 			$(ROMS)
 
 INCLUDES =  $(wildcard $(addsuffix /*.h, $(VPATH)))
@@ -147,6 +148,7 @@ SRCS_CC	 =  stream.cc \
 			command_intf.cc \
 			dos.cc \
 			vfs.cc \
+			ata.cc \
 			$(PRJ).cc
 
 

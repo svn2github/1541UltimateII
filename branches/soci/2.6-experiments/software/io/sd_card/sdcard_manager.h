@@ -15,9 +15,9 @@
 
 class SdCardManager //: public DeviceManager
 {
-	SdCard *sd_card;
 	FileDevice *sd_dev;
 public:
+	SdCard *sd_card;
 	SdCardManager();
 	~SdCardManager();
 

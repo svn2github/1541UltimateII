@@ -153,7 +153,7 @@ $(RESULT)/flash_400.mcs: $(RESULT)/$(PRJ).bin ../1st_boot/result/1st_boot_400.mc
 	@$(BIN2HEX) -o 0x0B3000 -t -a $(ROMS)/ar5ntsc.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0BB000 -t -a $(ROMS)/1541c.bin    $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0BF000 -t -a $(ROMS)/1541-ii.bin  $(OUTPUT)/_flash.mcs
-	@$(BIN2HEX) -o 0x0C3000 -t -a $(ROMS)/rr38ntsc.bin $(OUTPUT)/_flash.mcs
+	@$(BIN2HEX) -o 0x0C3000 -t -a $(ROMS)/idedos.bin   $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0D3000 -t -a $(ROMS)/ss5ntsc.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0E3000 -t -a $(ROMS)/tar_pal.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0F3000 -t -a $(ROMS)/tar_ntsc.bin $(OUTPUT)/_flash.mcs
@@ -178,7 +178,7 @@ $(RESULT)/flash_700.mcs: $(RESULT)/$(PRJ).bin ../1st_boot/result/1st_boot_700.mc
 	@$(BIN2HEX) -o 0x0B3000 -t -a $(ROMS)/ar5ntsc.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0BB000 -t -a $(ROMS)/1541c.bin    $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0BF000 -t -a $(ROMS)/1541-ii.bin  $(OUTPUT)/_flash.mcs
-	@$(BIN2HEX) -o 0x0C3000 -t -a $(ROMS)/rr38ntsc.bin $(OUTPUT)/_flash.mcs
+	@$(BIN2HEX) -o 0x0C3000 -t -a $(ROMS)/idedos.bin   $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0D3000 -t -a $(ROMS)/ss5ntsc.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0E3000 -t -a $(ROMS)/tar_pal.bin  $(OUTPUT)/_flash.mcs
 	@$(BIN2HEX) -o 0x0F3000 -t -a $(ROMS)/tar_ntsc.bin $(OUTPUT)/_flash.mcs

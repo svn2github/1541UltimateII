@@ -59,7 +59,7 @@ char *cart_mode[] = { "None",
                       "SuperSnapshot V5.22 PAL",
                       "TAsm / CodeNet PAL",
                       "Action Replay V5.0 NTSC",
-                      "Retro Replay V3.8a NTSC",
+                      "IDEDOS",
                       "SuperSnapshot V5.22 NTSC",
                       "TAsm / CodeNet NTSC",
                       "Epyx Fastloader",
@@ -72,7 +72,8 @@ char *cart_mode[] = { "None",
                       "Custom Final III ROM",
 */
                       "Custom Retro Replay ROM",
-                      "Custom Snappy ROM"
+                      "Custom Snappy ROM",
+                      "Custom IDEDOS ROM"
                    };
 
 cart_def cartridges[] = { { 0x00,               0x000000, 0x00000,  0x00 | CART_REU | CART_ETH },
@@ -83,7 +84,7 @@ cart_def cartridges[] = { { 0x00,               0x000000, 0x00000,  0x00 | CART_
                           { FLASH_ID_SS5PAL,    0x000000, 0x10000,  0x05 | CART_REU },
                           { FLASH_ID_TAR_PAL,   0x000000, 0x10000,  0x06 | CART_ETH },
                           { FLASH_ID_AR5NTSC,   0x000000, 0x08000,  0x07 },
-                          { FLASH_ID_RR38NTSC,  0x000000, 0x10000,  0x06 | CART_REU | CART_ETH },
+                          { FLASH_ID_IDEDOS,    0x000000, 0x10000,  0x0F | CART_REU | CART_ETH },
                           { FLASH_ID_SS5NTSC,   0x000000, 0x10000,  0x05 | CART_REU },
                           { FLASH_ID_TAR_NTSC,  0x000000, 0x10000,  0x06 | CART_ETH },
                           { FLASH_ID_EPYX,      0x000000, 0x02000,  0x0E },
@@ -96,7 +97,8 @@ cart_def cartridges[] = { { 0x00,               0x000000, 0x00000,  0x00 | CART_
                           { 0x00,               0x000000, 0x10000,  0x04 },
 */
                           { 0x00,               0x000000, 0x10000,  0x06 | CART_REU | CART_ETH },
-                          { 0x00,               0x000000, 0x10000,  0x05 | CART_REU }
+                          { 0x00,               0x000000, 0x10000,  0x05 | CART_REU },
+                          { 0x00,               0x000000, 0x10000,  0x0F | CART_REU | CART_ETH }
  };
                           
 #define CFG_C64_CART     0xC1
@@ -118,7 +120,7 @@ char *buttons[] = { "Reset|Menu|Freezer", "Freezer|Menu|Reset" };
 char *timing1[] = { "20ns", "40ns", "60ns", "80ns", "100ns", "120ns", "140ns", "160ns" };
 
 struct t_cfg_definition c64_config[] = {
-    { CFG_C64_CART,     CFG_TYPE_ENUM,   "Cartridge",                    "%s", cart_mode,  0, 15, 4 },
+    { CFG_C64_CART,     CFG_TYPE_ENUM,   "Cartridge",                    "%s", cart_mode,  0, 16, 4 },
     { CFG_C64_CUSTOM,   CFG_TYPE_STRING, "Custom Cart ROM",              "%s", NULL,       1, 31, (int)"cart.bin" },
     { CFG_C64_ALT_KERN, CFG_TYPE_ENUM,   "Alternate Kernal",             "%s", en_dis2,    0,  1, 0 },
     { CFG_C64_KERNFILE, CFG_TYPE_STRING, "Alternate Kernal File",        "%s", NULL,       1, 36, (int)"kernal.rom" },
@@ -687,7 +689,7 @@ void C64 :: set_cartridge(cart_def *def)
     
     set_emulation_flags(def);
 
-    DWORD mem_addr = ((DWORD)C64_CARTRIDGE_RAM_BASE) << 16;
+    DWORD mem_addr = ((DWORD)C64_CARTRIDGE_ROM_BASE) << 16;
     if(def->type & CART_RAM) {
         printf("Copying %d bytes from array %p to mem addr %p\n", def->length, def->custom_addr, mem_addr); 
         memcpy((void *)mem_addr, def->custom_addr, def->length);

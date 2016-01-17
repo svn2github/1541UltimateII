@@ -53,6 +53,7 @@ VPATH     = $(PATH_SW)/application \
 			$(PATH_SW)/io/iec \
 			$(PATH_SW)/6502 \
 			$(PATH_SW)/ModPlayer_16k \
+			$(PATH_SW)/ata \
 			$(ROMS)
 
 INCLUDES =  $(wildcard $(addsuffix /*.h, $(VPATH)))
@@ -141,6 +142,7 @@ SRCS_CC	 =  stream.cc \
 			command_intf.cc \
 			dos.cc \
 			vfs.cc \
+			ata.cc \
 			$(PRJ).cc
 
 ####			sampler.cc \

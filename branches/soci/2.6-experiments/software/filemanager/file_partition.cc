@@ -36,6 +36,7 @@ char *FilePartition :: get_type_string(BYTE typ)
         case 0x0C: return "FAT32";
         case 0x82: return "Swap";
         case 0x83: return "Linux";
+        case 0xCF: return "CFS";
         default: return "??";
     }
     return "";

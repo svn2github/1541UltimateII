@@ -186,6 +186,7 @@ begin
         g_usb_host      => true,
         g_spi_flash     => true,
         g_vic_copper    => false,
+        g_ata           => true,
         g_video_overlay => false )
     port map (
         -- globals

@@ -191,6 +191,7 @@ begin
         g_rtc_chip      => false,
         g_rtc_timer     => false,
         g_usb_host      => false,
+        g_ata           => true,
         g_spi_flash     => false )
     port map (
         -- globals

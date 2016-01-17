@@ -23,6 +23,7 @@ extern "C" {
 #include "stream_menu.h"
 #include "audio_select.h"
 #include "overlay.h"
+#include "ata.h"
 
 // these should move to main_loop.h
 void main_loop(void);
@@ -30,6 +31,7 @@ void send_nop(void);
 
 C1541 *c1541_A;
 C1541 *c1541_B;
+ATA *ata;
 
 UserInterface *user_interface;
 TreeBrowser *root_tree_browser;
@@ -80,6 +82,11 @@ void poll_drive_2(Event &e)
 void poll_c64(Event &e)
 {
 	c64->poll(e);
+}
+
+void poll_ata(Event &e)
+{
+	ata->poll(e);
 }
 
 int main()
@@ -141,6 +148,9 @@ int main()
     if(ITU_CAPABILITIES & CAPAB_DRIVE_1541_2) {
         c1541_B = new C1541(C1541_IO_LOC_DRIVE_2, 'B');
     }
+    if(ITU_CAPABILITIES & CAPAB_ATA) {
+        ata = new ATA((volatile BYTE *)(((DWORD)C64_CARTRIDGE_RAM_BASE) << 16), (volatile BYTE *)((((DWORD)C64_CARTRIDGE_RAM_BASE) << 16)+0x8000),&C64_ATA);
+    }
 
 	// add the drive(s) to the 'OS' (the event loop)
     printf("C1541A: %p, C1541B: %p\n", c1541_A, c1541_B);
@@ -154,7 +164,11 @@ int main()
         poll_list.append(&poll_drive_2);
     	c1541_B->init();
     }
-	
+
+    if(ata) {
+        poll_list.append(&poll_ata);
+    }
+
     printf("All linked modules have been initialized.\n");
     printf("Starting main loop...\n");
 
@@ -176,6 +190,8 @@ int main()
 	    delete tape_controller;
     if(tape_recorder)
 	    delete tape_recorder;
+    if(ata)
+	    delete ata;
 
     //printf("Cleaned up main components.. now.. what's left??\n");
     //root.dump();

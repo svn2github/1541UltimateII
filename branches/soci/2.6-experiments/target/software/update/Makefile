@@ -99,7 +99,7 @@ SRCS_BIN =  ultimate.bin \
 			ar6pal.bin \
 			epyx.bin \
 			final3.bin \
-			rr38ntsc.bin \
+			idedos.bin \
 			rr38pal.bin \
 			sounds.bin \
 			ss5ntsc.bin \

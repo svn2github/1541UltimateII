@@ -39,6 +39,7 @@ generic (
     g_spi_flash     : boolean := false;
     g_vic_copper    : boolean := false;
     g_sampler       : boolean := false;
+    g_ata           : boolean := false;
     g_analyzer      : boolean := false );
 port (
     -- globals
@@ -194,6 +195,7 @@ architecture logic of ultimate_logic is
         cap(21) := to_std(g_sampler);
         cap(22) := to_std(g_analyzer);
         cap(23) := to_std(g_usb_host2);
+        cap(24) := to_std(g_ata);
         cap(29 downto 28) := std_logic_vector(to_unsigned(g_fpga_type, 2));
         cap(30) := to_std(g_boot_rom);
         cap(31) := to_std(g_simulation);

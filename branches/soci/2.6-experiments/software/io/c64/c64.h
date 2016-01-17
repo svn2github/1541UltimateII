@@ -23,7 +23,7 @@
 #define C64_STOP                *((volatile BYTE *)(C64_CARTREGS_BASE + 0x1))
 #define C64_STOP_MODE           *((volatile BYTE *)(C64_CARTREGS_BASE + 0x2))
 #define C64_CLOCK_DETECT        *((volatile BYTE *)(C64_CARTREGS_BASE + 0x3))
-#define C64_CARTRIDGE_RAM_BASE  *((volatile BYTE *)(C64_CARTREGS_BASE + 0x4))
+#define C64_CARTRIDGE_ROM_BASE  *((volatile BYTE *)(C64_CARTREGS_BASE + 0x4))
 #define C64_CARTRIDGE_TYPE      *((volatile BYTE *)(C64_CARTREGS_BASE + 0x5))
 #define C64_CARTRIDGE_KILL      *((volatile BYTE *)(C64_CARTREGS_BASE + 0x6))
 #define C64_KERNAL_ENABLE       *((volatile BYTE *)(C64_CARTREGS_BASE + 0x7))
@@ -32,8 +32,10 @@
 #define C64_SWAP_CART_BUTTONS   *((volatile BYTE *)(C64_CARTREGS_BASE + 0xA))
 #define C64_TIMING_ADDR_VALID   *((volatile BYTE *)(C64_CARTREGS_BASE + 0xB))
 #define C64_PHI2_EDGE_RECOVER   *((volatile BYTE *)(C64_CARTREGS_BASE + 0xC))
+#define C64_CARTRIDGE_RAM_BASE  *((volatile BYTE *)(C64_CARTREGS_BASE + 0xD))
 #define C64_SAMPLER_ENABLE      *((volatile BYTE *)(C64_CARTREGS_BASE + 0xE))
 #define C64_ETHERNET_ENABLE     *((volatile BYTE *)(C64_CARTREGS_BASE + 0xF))
+#define C64_ATA                 *((volatile BYTE *)(C64_CARTREGS_BASE + 0x10))
 
 #define C64_KERNAL_BASE         0x0ECC000
 
