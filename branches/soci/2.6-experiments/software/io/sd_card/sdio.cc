@@ -57,32 +57,35 @@ void sdio_read_block(BYTE *buf)
     }
 }
 
-bool sdio_write_block(const BYTE *buf)
+BYTE sdio_write_block(const BYTE *buf, BYTE token)
 {
     DWORD *pul, ul;
     ul = (DWORD)buf;
     pul = (DWORD *)buf;
+    BYTE response;
 
-    SDIO_DATA = 0xFE; // start of block
-    if((ul & 3)==0) {
-		for(int i=0;i<128;i++) {
-			SDIO_DATA_32 = *(pul++);
-		}
-    } else {
-		for(int i=0;i<512;i++) {
-			SDIO_DATA = *(buf++);
-		}
+    SDIO_DATA = token; // start of block
+    if (buf) {
+        if((ul & 3)==0) {
+            for(int i=0;i<128;i++) {
+                SDIO_DATA_32 = *(pul++);
+            }
+        } else {
+            for(int i=0;i<512;i++) {
+                SDIO_DATA = *(buf++);
+            }
+        }
+        SDIO_DATA = 0xFF; // dummy (crc, etc)
+        SDIO_DATA = 0xFF;
     }
-	SDIO_DATA = 0xFF; // dummy (crc, etc)
-    SDIO_DATA = 0xFF;
-    SDIO_DATA = 0xFF;
+    response = SDIO_DATA & 0x1F;
 
     int time_out = 200000;
 
     while(SDIO_DATA != 0xFF) { // readback
     	--time_out;
 		if(!time_out)
-			return false; // error!
+			return 0xFF; // error!
 	}
-    return true; // ok
+    return response; // ok
 }

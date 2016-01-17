@@ -3,10 +3,14 @@
 #include "blockdev.h" // base class definition
 #include "sdio.h"
 
+#define	CMDSTOP      12
 #define CMDGETSTATUS 13
 #define CMDSETBLKLEN 16
 #define	CMDREAD      17
+#define	CMDMULTIREAD 18
+#define	CMDWRDLKERASE 23
 #define	CMDWRITE     24
+#define	CMDMULTIWRITE 25
 #define	CMDREADCSD    9
 #define	CMDREADCID   10
 #define CMDCRCONOFF  59

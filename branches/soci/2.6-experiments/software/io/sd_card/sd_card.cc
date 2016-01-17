@@ -305,6 +305,7 @@ DRESULT SdCard :: write(const BYTE* buf, DWORD address, BYTE sectors )
 {
 	DWORD place;
 	BYTE  resp;
+	int j;
 #ifdef SD_VERIFY
     int   ver;
 #endif    
@@ -313,31 +314,54 @@ DRESULT SdCard :: write(const BYTE* buf, DWORD address, BYTE sectors )
 /*
     // wait a bit?
 */
-    for(int j=0;j<sectors;j++) {
-    	place=(sdhc)?(address):(address<<9);
-    	sdio_send_command(CMDWRITE, (WORD)(place >> 16), (WORD) place);
-    
-/*      // wait for 0.5 ms
-        ITU_TIMER = 100;
-        while(ITU_TIMER)
-            ;
-*/        
-    	resp = Resp8b(); /* Card response */
-    	Resp8bError(resp);
-    
-        if(!sdio_write_block(buf)) {
-            printf("Timeout error writing block %d\n", address);
-            return RES_ERROR;
+    if (!sectors) return RES_OK;
+    place=(sdhc)?(address):(address<<9);
+
+    if (sectors != 1) {
+        sdio_send_command(CMDAPPCMD, 0, 0);
+        resp=Resp8b();
+        sdio_send_command(CMDWRDLKERASE, 0, (WORD)sectors);
+        resp=Resp8b();
+    }
+
+    sdio_send_command(sectors == 1 ? CMDWRITE : CMDMULTIWRITE, (WORD)(place >> 16), (WORD) place);
+    resp = Resp8b(); /* Card response */
+    Resp8bError(resp);
+
+    for(j = 0; j < sectors; j++) {
+        resp = sdio_write_block(buf, sectors == 1 ? SD_TOKEN_SINGLE : SD_TOKEN_MULTI);
+        if(resp != SD_RESPONSE_OK) {
+            switch (resp) {
+            case SD_RESPONSE_TIMEOUT: 
+                printf("Timeout error writing block %d\n", address);
+                break;
+            case SD_RESPONSE_CRC: 
+                printf("CRC error writing block %d\n", address);
+                break;
+            case SD_RESPONSE_ERROR: 
+                printf("Write error writing block %d\n", address);
+                break;
+            default:
+                printf("Unknown response %x writing block %d\n", resp, address);
+                break;
+            }
+            break;
         }    
-#ifdef SD_VERIFY
-        ver = verify(address, buf);
-        if(ver)
-            return ver;
-#endif
         address ++;
     	buf += SD_SECTOR_SIZE;
     }
-	return RES_OK;
+    if (sectors > 1)  {
+        if(sdio_write_block(NULL, SD_TOKEN_STOP) == SD_RESPONSE_TIMEOUT) {
+            printf("Timeout error writing block %d\n", address);
+            j = 0;
+        }    
+    }
+#ifdef SD_VERIFY
+    ver = verify(address, buf);
+    if(ver)
+        return ver;
+#endif
+	return (j == sectors) ? RES_OK : RES_ERROR;
 }
 
 DRESULT SdCard :: ioctl(BYTE command, void *data)
