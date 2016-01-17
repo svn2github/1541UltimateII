@@ -26,7 +26,7 @@ port (
     DATA_tri        : out std_logic;
 
     -- timing inputs
-    vic_cycle       : in  std_logic;
+    aec_recovered   : in  std_logic;
     phi2_recovered  : in  std_logic;
     phi2_tick       : in  std_logic;
     do_sample_addr  : in  std_logic;
@@ -180,7 +180,7 @@ begin
             end case;
 
             drive_ah <= drive_al; -- one cycle later on (SSO)
-            if (dma_n_i='0' and phi2_recovered='1' and vic_cycle='0') then
+            if (dma_n_i='0' and aec_recovered='1') then
                 drive_al <= '1';
             else
                 drive_al <= '0';
@@ -203,8 +203,7 @@ begin
     
     -- by shifting the phi2 and anding it with the original, we make the write enable narrower,
     -- starting only halfway through the cycle. We should not be too fast!
-    DATA_tri      <= '1' when (dma_n_i='0' and phi2_recovered='1' and phi2_dly(phi2_dly'high)='1' and
-                               vic_cycle='0' and rwn_out_i='0') else '0';
+    DATA_tri      <= '1' when (dma_n_i='0' and aec_recovered='1' and phi2_dly(phi2_dly'high)='1' and rwn_out_i='0') else '0';
                                
     RWn_tri       <= drive_al; --'1' when (dma_n_i='0' and phi2_recovered='1' and ba_c='1') else '0';
                                 

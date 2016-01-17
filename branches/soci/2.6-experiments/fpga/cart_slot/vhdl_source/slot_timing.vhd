@@ -23,7 +23,7 @@ port (
     phi2_tick       : out std_logic;
     phi2_recovered  : out std_logic;
     clock_det       : out std_logic;
-    vic_cycle       : out std_logic;    
+    aec_recovered   : out std_logic;
 
     inhibit         : out std_logic;
     do_sample_addr  : out std_logic;
@@ -59,7 +59,7 @@ architecture gideon of slot_timing is
     attribute register_duplication of ba_c    : signal is "no";
     attribute register_duplication of phi2_c  : signal is "no";
 begin
-    vic_cycle      <= '1' when (ba_hist = "0000") else '0';
+    aec_recovered  <= (ba_hist(3) or ba_hist(2) or ba_hist(1)) and phi2_rec_i;
     phi2_recovered <= phi2_rec_i;
     phi2_tick      <= phi2_tick_i;
     
@@ -104,6 +104,9 @@ begin
             end if;
             if phase_h = 46 then -- max 1.06 MHz
                 allow_tick_h <= true;
+            end if;
+            if phase_h = 12 or (phase_l = 12 and ba_c = '1') then
+                ba_hist(0) <= ba_c;
             end if;
 
             -- related to falling edge
