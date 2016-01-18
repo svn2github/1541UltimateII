@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
-use ieee.std_logic_arith.all;
-use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all;
 
 entity via6522 is
 port (
@@ -430,58 +429,50 @@ begin
     
 
     -- Timer A
-    tmr_a: block
-        signal timer_a_reload        : std_logic;
-        signal timer_a_post_oneshot        : std_logic;
+    tmr_a : process(clock, timer_a_latch)
+        variable oneshot    : std_logic;
+        variable counter    : unsigned(15 downto 0);
+        variable tmp        : unsigned(16 downto 0);
+        variable reload     : boolean;
+        variable reload_req : boolean;
     begin
-        process(clock)
-        begin
-            if rising_edge(clock) then
-                timer_a_event <= '0';
-    
-                if clock_en='1' then
-                    -- always count, or load
-                        
-                    if timer_a_reload = '1' then
-                        timer_a_count  <= timer_a_latch;
-                        timer_a_reload <= '0';
-                    else
-                        if timer_a_count = X"0000" then
-                            -- generate an event if we were triggered
-                            if tmr_a_freerun = '1' then
-                                timer_a_event  <= '1';
-                                -- if in free running mode, set a flag to reload
-                                timer_a_reload <= tmr_a_freerun;
-                            else
-                                if (timer_a_post_oneshot = '0') then
-                                    timer_a_post_oneshot <= '1';
-                                    timer_a_event  <= '1';
-                                end if;
-                            end if;                                                                             
-                            -- toggle output
-                            timer_a_out    <= not timer_a_out;                        
-                        end if;
-                        --Timer coutinues to count in both free run and one shot.                        
-                        timer_a_count <= timer_a_count - X"0001";
-                    end if;                    
-                end if;
-                
-                if selector(5) and wen='1' then
-                    timer_a_out   <= '0';
-                    timer_a_count <= data_in & timer_a_latch(7 downto 0);
-                    timer_a_reload <= '0';
-                    timer_a_post_oneshot <= '0';
-                end if;
+        tmp := to_unsigned(to_integer(counter) + 65535, 17);
+        if reload then
+            timer_a_count <= timer_a_latch;
+        else
+            timer_a_count <= std_logic_vector(tmp(15 downto 0));
+        end if;
+        if rising_edge(clock) then
+            timer_a_event <= '0';
 
-                if reset='1' then
-                    timer_a_out    <= '1';
-                    timer_a_count  <= latch_reset_pattern;
-                    timer_a_reload <= '0';
-                    timer_a_post_oneshot <= '0';
-                end if;
+            if clock_en = '1' or reload_req then
+                counter := unsigned(timer_a_count);
             end if;
-        end process;
-    end block tmr_a;
+
+            if clock_en = '1' then
+                if tmp(16)='0' and not reload then
+                    timer_a_event <= tmr_a_freerun or oneshot; -- always, or only the first
+                    oneshot := '0'; -- one shot done
+                    timer_a_out <= not timer_a_out;                        
+                end if;
+                reload := tmp(16)='0';
+            end if;
+
+            if reset='1' then
+                timer_a_out <= '1';
+                reload_req  := true; -- for loading reset pattern
+                reload      := true;
+                oneshot     := '1';
+            elsif selector(5) and wen='1' then
+                timer_a_out <= '0';
+                reload_req  := true;
+                reload      := true;
+                oneshot     := '1'; -- one shot possible
+            else
+                reload_req  := false;
+            end if;
+        end if;
+    end process tmr_a;
     
     -- Timer B
     tmr_b: block
@@ -528,7 +519,7 @@ begin
                                     null;
                                 end case;
                             end if;
-                            timer_b_count <= timer_b_count - X"0001";
+                            timer_b_count <= std_logic_vector(unsigned(timer_b_count) - 1);
                         end if;
                     end if;
                 end if;
