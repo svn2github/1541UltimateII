@@ -16,9 +16,9 @@
             .byte >start
             .byte <startNMI     ;nmi vector
             .byte >startNMI
-            .byte 'C' + $80, 'B' + $80, 'M' + $80, '80'   ;CBM80
+            .null "CBM80"       ;CBM80
 
-            .text $00, 'WARP DRIVE LOADER. COPYRIGHT (C) 2012 - GIDEON ZWEIJTZER', $00
+            .null "warp drive loader. copyright (c) 2012 - gideon zweijtzer"
 
 startNMI    jmp $fe5e
 
@@ -159,15 +159,15 @@ load_drive_code
     rts
     
 send_execute
-    lda #'E'
+    lda #'e'
     jsr $ffd2
     ldx #1
     jsr $ffc9
-    lda #'M'
+    lda #'m'
     jsr $ffd2
     lda #'-'
     jsr $ffd2
-    lda #'E'
+    lda #'e'
     jsr $ffd2
     lda #0
     jsr $ffd2
@@ -183,11 +183,11 @@ send_code_block ; pointer is in FB/FC
     jsr $ffd2
     ldx #1
     jsr $ffc9 ; CHKOUT
-    lda #'M'
+    lda #'m'
     jsr $ffd2
     lda #'-'
     jsr $ffd2
-    lda #'W'
+    lda #'w'
     jsr $ffd2
     lda $fd
     jsr $ffd2

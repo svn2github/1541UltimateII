@@ -7,7 +7,7 @@ ZPU_TOOLCHAIN ?= /cygdrive/d/Proj/zpu/git/toolchain
 BIN2HEX = $(TOOLS)/bin2hex
 HEX2BIN = $(TOOLS)/hex2bin
 MAKEAPPL = $(TOOLS)/makeappl
-TASS = $(TOOLS)/64tass/64tass
+TASS = $(TOOLS)/64tass-992
 PARSE_IEC = $(TOOLS)/parse_iec.py
 LWIP = ../lwip/archive
 BOOT = ../2nd_boot
@@ -220,7 +220,7 @@ $(RESULT)/$(PRJ)_V1.bin: $(OUTPUT)/$(PRJ)_V1.out
 
 %.65: %.tas
 	@echo "Assembling $<"
-	@$(TASS) $< --m6502 --nostart -o $(OUTPUT)/$(@F)
+	@$(TASS) $< --m6502 --nostart -a -o $(OUTPUT)/$(@F)
 
 %.iec: %.txt
 	@echo "Assembling IEC processor code $(<F)"

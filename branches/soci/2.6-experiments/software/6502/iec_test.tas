@@ -49,15 +49,15 @@ start
     rts
     
 send_execute
-    lda #'E'
+    lda #'e'
     jsr $ffd2
     ldx #1
     jsr $ffc9
-    lda #'M'
+    lda #'m'
     jsr $ffd2
     lda #'-'
     jsr $ffd2
-    lda #'E'
+    lda #'e'
     jsr $ffd2
     lda #0
     jsr $ffd2
@@ -73,11 +73,11 @@ send_code_block ; pointer is in FB/FC
     jsr $ffd2
     ldx #1
     jsr $ffc9 ; CHKOUT
-    lda #'M'
+    lda #'m'
     jsr $ffd2
     lda #'-'
     jsr $ffd2
-    lda #'W'
+    lda #'w'
     jsr $ffd2
     lda $fd
     jsr $ffd2
@@ -356,7 +356,7 @@ step_in
     and #$fc
     sta temp1
     inx
-_si
+si
     txa
     and #$03
     ora temp1
@@ -373,7 +373,7 @@ step_out
     and #$fc
     sta temp1
     dex
-    jmp _si
+    jmp si
 
 read_track
     lda sectors_on_this_track

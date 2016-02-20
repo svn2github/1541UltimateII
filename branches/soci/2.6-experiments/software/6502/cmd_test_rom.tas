@@ -36,9 +36,9 @@
             .byte >start
             .byte <startNMI     ;nmi vector
             .byte >startNMI
-            .byte 'C' + $80, 'B' + $80, 'M' + $80, '80'   ;CBM80
+            .null "CBM80"       ;CBM80
 
-            .text $00, 'Test routines for Command Interface I/O Module. Copyright (c) 2013 - Gideon Zweijtzer', $00
+            .null "Test routines for Command Interface I/O Module. Copyright (c) 2013 - Gideon Zweijtzer"
 
 startNMI    jmp $fe5e
 
@@ -265,7 +265,7 @@ _print_hex
 +           lda #$0D
             jmp $ffd2
 
-hex_chars   .text "0123456789ABCDEF"
+hex_chars   .text "0123456789abcdef"
             .pend
             
 
@@ -275,6 +275,7 @@ wait_while_busy .proc
             cmp #CMD_STATE_BUSY
             beq -
             rts
+            .pend
 
 get_status  .proc
             bit CMD_IF_CONTROL
@@ -290,7 +291,7 @@ get_status  .proc
             jmp -            
 +           lda #$0d
             jmp $ffd2
-status_string .text "STATUS: ", $00
+status_string .text "status: ", $00
             .pend
 
 print_busy  .proc
@@ -299,7 +300,7 @@ print_busy  .proc
             jsr $ab1e
             lda #$0d
             jmp $ffd2
-busy_string .text "?DEVICE BUSY", $00
+busy_string .text "?device busy", $00
             .pend
 
 print_abort .proc
@@ -308,5 +309,5 @@ print_abort .proc
             jsr $ab1e
             lda #$0d
             jmp $ffd2
-busy_string .text "PENDING COMMAND ABORTED.", $00
+busy_string .text "pending command aborted.", $00
             .pend

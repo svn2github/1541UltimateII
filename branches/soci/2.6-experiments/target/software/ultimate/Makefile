@@ -217,7 +217,7 @@ $(RESULT)/$(PRJ)_V1.bin: $(OUTPUT)/$(PRJ)_V1.out
 
 %.65: %.tas
 	@echo "Assembling $<"
-	@$(TASS) $< --m6502 --nostart -o $(OUTPUT)/$(@F)
+	@$(TASS) $< --m6502 --nostart -a -o $(OUTPUT)/$(@F)
 
 %.b: %.iec
 	@echo "Assembling IEC processor code $(<F)"

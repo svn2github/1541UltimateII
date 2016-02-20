@@ -59,7 +59,7 @@ $(RESULT)/$(PRJ).bit: $(OUTPUT)/$(PRJ).mem $(FPGA_700).bit
 
 $(OUTPUT)/$(PRJ).65: $(SRCS_6502)
 	@echo "Assembling $<"
-	$(TASS) $< --m6502 --nostart -o $(OUTPUT)/$(@F)
+	$(TASS) $< --m6502 --nostart -a -o $(OUTPUT)/$(@F)
 
 $(OUTPUT)/$(PRJ).mem: $(OUTPUT)/$(PRJ).65
 	@echo "Make mem..."

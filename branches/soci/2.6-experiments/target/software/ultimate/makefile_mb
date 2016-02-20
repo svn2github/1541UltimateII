@@ -5,7 +5,7 @@ TOOLS = ../../../tools
 BIN2HEX = $(TOOLS)/bin2hex
 HEX2BIN = $(TOOLS)/hex2bin
 MAKEAPPL = $(TOOLS)/makeappl
-TASS = $(TOOLS)/64tass/64tass
+TASS = $(TOOLS)/64tass-992
 
 BOOT = ../2nd_boot
 
@@ -195,7 +195,7 @@ $(RESULT)/$(PRJ).bin: $(OUTPUT)/$(PRJ).out
 
 %.65: %.tas
 	@echo "Assembling $<"
-	$(TASS) $< --m6502 --nostart -o $(OUTPUT)/$(@F)
+	$(TASS) $< --m6502 --nostart -a -o $(OUTPUT)/$(@F)
 
 %.o: %.65
 	@echo "Converting .65 binary to .o"

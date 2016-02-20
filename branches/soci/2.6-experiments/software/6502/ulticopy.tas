@@ -240,7 +240,7 @@ step_in
     and #$fc
     sta temp1
     inx
-_si
+si
     txa
     and #$03
     ora temp1
@@ -257,7 +257,7 @@ step_out
     and #$fc
     sta temp1
     dex
-    jmp _si
+    jmp si
 
 read_track
     lda sectors_on_this_track
