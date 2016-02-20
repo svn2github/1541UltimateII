@@ -23,8 +23,12 @@ CC  = gcc
 # --------------------------------------------------------------------------
 # Binaries
 
+64tass-992:
+	@$(MAKE) -C 64tass 64tass
+	@cp 64tass/64tass 64tass-992
+
 .PHONY:	all clean
-all:   	bin2hex hex2bin make_array make_mem makeappl promgen checksum dump_vcd
+all:   	bin2hex hex2bin make_array make_mem makeappl promgen checksum dump_vcd 64tass-992
 #ifneq ($(TERM), cygwin)
 #	@$(MAKE) -C 64tass
 #endif
@@ -45,6 +49,5 @@ clean:
 	@rm -f promgen.exe
 	@rm -f checksum.exe
 	@rm -f dump_vcd.exe
-	@rm -f 64tass/64tass
-	@rm -f 64tass/*.o
-	
+	@rm -f 64tass-992.exe
+	@$(MAKE) -C 64tass distclean

@@ -6,7 +6,7 @@ BIN2HEX = $(TOOLS)/bin2hex
 HEX2BIN = $(TOOLS)/hex2bin
 MAKEMEM  = $(TOOLS)/make_mem
 MAKEAPPL = $(TOOLS)/makeappl
-TASS = $(TOOLS)/64tass/64tass
+TASS = $(TOOLS)/64tass-992
 
 
 # Configuration
