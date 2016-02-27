@@ -70,7 +70,6 @@ public:
     ~ATA();
     
     void poll(Event &e);
-
 };
 
 #endif

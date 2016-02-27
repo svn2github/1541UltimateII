@@ -143,6 +143,7 @@ SRCS_CC	 =  stream.cc \
 			dos.cc \
 			vfs.cc \
 			ata.cc \
+			atamanager.cc \
 			$(PRJ).cc
 
 ####			sampler.cc \

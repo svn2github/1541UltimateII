@@ -43,6 +43,9 @@ FileSystem *Partition :: attach_filesystem(void)
 {
     FileSystem *fs = NULL;
     DWORD sec_size;
+
+    if (type == 0xCF) return fs;
+
     ioctl(GET_SECTOR_SIZE, &sec_size);
     
     bool iso;

@@ -129,6 +129,7 @@ SRCS_CC	 =  stream.cc \
 			task_menu.cc \
 			audio_select.cc \
 			ata.cc \
+			atamanager.cc \
 			$(PRJ).cc
 
 ####			copper.cc \

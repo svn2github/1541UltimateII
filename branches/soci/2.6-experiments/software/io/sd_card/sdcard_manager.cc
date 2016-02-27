@@ -9,6 +9,7 @@ extern "C" {
 	#include "dump_hex.h"
 }
 #include "sdcard_manager.h"
+#include "atamanager.h"
 
 SdCardManager sd_card_manager;
 static void poll_sdcard(Event &e)
@@ -49,6 +50,7 @@ void SdCardManager :: poll()
 				} else { // initial insertion
 					sd_card->set_state(e_device_ready);
                     sd_dev->attach_disk(512); // block size
+                    atamanager.attach(sd_card);
 				}
 				push_event(e_refresh_browser, &root);
 		    } else {
@@ -73,6 +75,7 @@ void SdCardManager :: poll()
 				sd_card->set_state(e_device_ready);
                 sd_dev->attach_disk(512); // block size
 				push_event(e_refresh_browser, &root);
+                atamanager.attach(sd_card);
 			}
 			break;
 		
@@ -82,6 +85,7 @@ void SdCardManager :: poll()
 				push_event(e_detach_disk, sd_dev);
 				sd_card->set_state(e_device_no_media);
 				push_event(e_refresh_browser, &root);
+                atamanager.detach(sd_card);
 			}
 			break;
 

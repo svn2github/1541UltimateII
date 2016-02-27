@@ -24,6 +24,7 @@ BYTE c_scsi_reset[]     = { 0x21, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 / and necessary device objects
 /*********************************************************************/
 #ifndef BOOTLOADER
+#include "atamanager.h"
 // tester instance
 UsbScsiDriver usb_scsi_driver_tester(usb_drivers);
 
@@ -90,6 +91,7 @@ void UsbScsiDriver :: install(UsbDevice *dev)
 		poll_interval[i] = i; // ;-) not all at the same time!
 		media_seen[i] = false;
 		root.children.append(path_dev[i]);
+        atamanager.attach(scsi_blk_dev[i]);
 	}
 	push_event(e_refresh_browser, &root);
 	current_lun = 0;
@@ -101,6 +103,7 @@ void UsbScsiDriver :: deinstall(UsbDevice *dev)
         printf("DeInstalling SCSI Lun %d\n", i);
         path_dev[i]->detach();
 		root.children.remove(path_dev[i]);
+        atamanager.detach(scsi_blk_dev[i]);
 		push_event(e_invalidate, path_dev[i]);
 		push_event(e_cleanup_path_object, path_dev[i]);
 		push_event(e_cleanup_block_device, scsi_blk_dev[i]);

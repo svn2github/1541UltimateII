@@ -1,0 +1,76 @@
+
+IDEDOS cartridge
+----------------
+
+This cartridge implements an IDE64 memory mapping and a IDE64 v4 style
+ATA interface emulation to run IDEDOS on the 1541U.
+
+Selectable by as "IDEDOS" or "Custom IDEDOS ROM". Also runnable from
+cartridge files.
+
+Differences to a IDE64 cartridge are:
+- missing DS1302. Therefore no real-time clock or setting saving.
+- no latches in ATA interface, incompatible with CFSfsck 0.5b and earlier only.
+
+While it is possible to use a firmware compiled for IDE64 v4, this is not
+recommended as it's not possible to enter the CMOS setup due to missing
+DS1302. It will also not handle the freeze button, as this needs special
+support.
+
+A single ATA harddisk is emulated at the moment. It is mapped when the
+device is initialized by IDEDOS (HDINIT). At that point it'll choose the
+last attached removable device, and retains in until it's removed. After
+removal no further access is possible until another initialization is
+done. Once a device was initialized it won't change until removal.
+
+Do not change the device while in operation as it might corrupt it. As a
+hard disk is emulated which is not removable normally IDEDOS will not
+detect the change (that's why it's blocked until hdinit).
+
+The removable device can be either a SD card or an USB mass storage
+device. Only 512 byte sector sizes are supported. If a device does not
+show up in the menu, it's not usable for the ATA emulation either.
+
+IDEDOS has limited support for FAT filesystems. Therefore it's strongly
+recommended to use it's native filesystem. Either by dedicating a device
+to it (easy), or by using a "CF" partition to hold the native partitions.
+
+The ATA hard disk emulation runs on the same CPU as the rest of 1541U.
+Therefore unexpected intermittent "hangs" might occur while accessing
+the disk. For example attaching a D64 will stall hard disk reads until
+it's finished.
+
+SD card writing might be low performance with cheap cards, also some USB
+devices write slowly. In general it's very likely the performance will be
+lower than using a CF card on a IDE64.
+
+Attaching a real hard disk without it's own power supply to the USB port
+is asking for trouble. Don't do it, it might draw too much power and
+might do damage on either sides. Try to use a powered hub to get around
+this (untested).
+
+Card readers might not work if you're unlucky. Mine doesn't at least.
+
+While the timing was tested and it seems to be stable on my machine it
+does not mean you might not get data corruption on your setup. It's your
+responsibility to ensure testing before trusting important data to it.
+You have been warned!
+
+PCLink support is limited. X1541 and PC64 should work with IDEDOS
+compiled for it.
+
+"Running" programs from the 1541U menu will disable the IDEDOS cartridge
+emulation. Better attach D64 images to the 1541 emulation.
+
+The built in IEC emulation is not compatible with many things, including
+IDEDOS. Switch it off and use the 1541 emulation instead.
+
+REU and other stuff can be used together with the IDEDOS cartridge as far as I
+know.
+
+SuperCPU compatibility was not tested. It requires the right IDEDOS image
+if it works.
+
+Do not use CFSfsck 0.5b and earlier. Due to a bad "optimization" it'll not
+work correctly with the ATA interface. This was corrected in later versions.
+

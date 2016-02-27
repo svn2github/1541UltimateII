@@ -25,9 +25,8 @@ extern "C" {
     #include "small_printf.h"
 }
 #include "ata.h"
-#include "sdcard_manager.h"
+#include "atamanager.h"
 #include "blockdev.h"
-#include "sd_card.h"
 
 #define putw(a,b) {buf[(a) * 2] = (b);buf[(a) * 2 + 1] = (b) >> 8;}
 
@@ -41,8 +40,9 @@ extern "C" {
 
 void ATA :: diag(void)
 {
-    DWORD size;
-    sd_card_manager.sd_card->ioctl(GET_SECTOR_COUNT, &size);
+    DWORD size = 0;
+    BlockDevice *device = atamanager.select();
+    if (device) device->ioctl(GET_SECTOR_COUNT, &size);
     calc_geometry((int)size);
 
     cmd = 0;
@@ -166,6 +166,7 @@ void ATA :: poll(Event &e)
     BYTE result, error;
     volatile BYTE *buf;
     BYTE hw = *hwregister;
+    BlockDevice *device;
 
     if (hw & ATA_RST) {
         if (hw & ATA_DRDY) return;
@@ -189,7 +190,8 @@ void ATA :: poll(Event &e)
                 error = ATA_IDNF;
                 break;
             }
-            if (sd_card_manager.sd_card->read((BYTE *)buf, lba, 1) == RES_OK) {
+            device = atamanager.current;
+            if (device && device->read((BYTE *)buf, lba, 1) == RES_OK) {
                 count = registers[ATA_COUNT] - 1;
                 cmd = 1;
                 fill = pos = 1;
@@ -219,8 +221,9 @@ void ATA :: poll(Event &e)
                 break;
             }
             count = registers[ATA_COUNT];
+            device = atamanager.current;
             while (--count) {
-                if (sd_card_manager.sd_card->read((BYTE *)buf, lba, 1) != RES_OK) {
+                if (device && device->read((BYTE *)buf, lba, 1) != RES_OK) {
                     set_lba(lba);
                     error = ATA_ABRT | ATA_UNC;
                     break;
@@ -341,7 +344,8 @@ void ATA :: poll(Event &e)
         return;
     }
     if (cmd == 1 && count && fill < ATA_BUF && !((hw & ATA_DATA) && fill > 1)) {// READ SECTORS
-        if (sd_card_manager.sd_card->read((BYTE *)buffer + (pos << 9), lba, 1) == RES_OK) {
+        device = atamanager.current;
+        if (device && device->read((BYTE *)buffer + (pos << 9), lba, 1) == RES_OK) {
             count--;
             fill++;
             lba++;
@@ -376,7 +380,8 @@ void ATA :: poll(Event &e)
                     *hwregister = 0; // Early response, assume all will go fine...
                 }
             }
-            if (sd_card_manager.sd_card->write((BYTE *)buffer, lba, fill) == RES_OK) {
+            device = atamanager.current;
+            if (device && device->write((BYTE *)buffer, lba, fill) == RES_OK) {
                 lba += fill; fill = 0;
                 if (!count && write_cache) return; // And all went fine
                 break;
