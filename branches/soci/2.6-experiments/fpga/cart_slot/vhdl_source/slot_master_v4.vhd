@@ -48,18 +48,16 @@ end slot_master_v4;
 architecture gideon of slot_master_v4 is
     signal ba_c         : std_logic;
     signal rwn_c        : std_logic := '1';
-    signal dma_n_i      : std_logic := '1';
+    signal dma_n        : std_logic := '1';
     signal data_c       : std_logic_vector(7 downto 0) := (others => '1');
     type t_byte_array is array(natural range <>) of std_logic_vector(7 downto 0);
     signal data_d       : t_byte_array(0 to 7);
     signal addr_out     : std_logic_vector(15 downto 0) := (others => '1');
     signal drive_ah     : std_logic;
     signal drive_al     : std_logic;
-    signal dma_ack_i    : std_logic;
+    signal dma_dack     : std_logic;
     signal rwn_out_i    : std_logic;
     signal phi2_dly     : std_logic_vector(6 downto 0) := (others => '0');
-    signal reu_active   : std_logic;
-    signal cmd_if_active: std_logic;
     constant match_ptrn : std_logic_vector(1 downto 0) := "01"; -- read from left to right
     signal rwn_hist     : std_logic_vector(3 downto 0);
     signal ba_count     : integer range 0 to 15;
@@ -88,6 +86,7 @@ begin
             data_c    <= DATA_in;
             data_d(0) <= data_c;
             data_d(1 to 7) <= data_d(0 to 6);
+            dma_dack  <= '0';
             dma_rack  <= '0';
             phi2_dly  <= phi2_dly(phi2_dly'high-1 downto 0) & phi2_recovered;
             
@@ -113,73 +112,48 @@ begin
                 when others => stop := true;
             end case;
 
+            c64_stopped <= c64_stop and reu_dma_n and not cmd_if_freeze;
+            dma_n <= '0';
             case state is
             when idle =>
-                dma_ack_i <= dma_req.request and dma_req.read_writen; -- do not serve DMA requests when machine is not stopped
+                dma_n <= '1';                
+                c64_stopped <= '0';
+                dma_dack  <= dma_req.request and dma_req.read_writen; -- do not serve DMA requests when machine is not stopped
                 dma_rack  <= dma_req.request;
                 
-                dma_n_i <= '1';                
-                reu_active <= '0';
-                cmd_if_active <= '0';
-                if reu_dma_n='0' then -- for software assited REU-debugging
-                    reu_active <= '1';
-                    dma_n_i <= '0';
-                    c64_stopped <= '1';
+                if reu_dma_n='0' or cmd_if_freeze='1' or (c64_stop='1' and stop and do_io_event='1') then
                     state <= stopped;
-                elsif cmd_if_freeze='1' then
-                    cmd_if_active <= '1';
-                    dma_n_i <= '0';
-                    c64_stopped <= '1';
-                    state <= stopped;
-                elsif c64_stop='1' and do_io_event='1' then
-                    if stop then
-                        dma_n_i <= '0';
-                        state <= stopped;
-                        c64_stopped <= '1';
-                    end if;
                 end if;
                 
             when stopped =>
-                dma_ack_i <= '0';
                 rwn_out_i <= '1';
                 addr_out(15 downto 14) <= "00"; -- always in a safe area
                 -- is the dma request active and are we at the right time?
-                if dma_req.request='1' and dma_ack_i='0' and phi2_tick='1' and ba_c='1' then
+                if dma_req.request='1' and phi2_tick='1' and ba_c='1' then
                     dma_rack  <= '1';
                     DATA_out  <= dma_req.data;
                     addr_out  <= std_logic_vector(dma_req.address);
                     rwn_out_i <= dma_req.read_writen;
                     state     <= do_dma;
-                elsif reu_active='1' and reu_dma_n='1' and do_io_event='1' then
-                    c64_stopped <= '0';
-                    dma_n_i  <= '1';
+                elsif reu_dma_n='1' and cmd_if_freeze='0' and c64_stop = '0' and do_io_event='1' then
                     state   <= idle;
-                elsif cmd_if_active='1' and cmd_if_freeze='0' and do_io_event='1' then
-                    c64_stopped <= '0';
-                    dma_n_i  <= '1';
-                    state   <= idle;
-                elsif reu_active='0' and c64_stop = '0' and do_io_event='1' then
-                    if stop then
-                        c64_stopped <= '0';
-                        dma_n_i  <= '1';
-                        state   <= idle;
-                    end if;
                 end if;
           
             when do_dma =>
                 if phi2_recovered='0' then -- end of CPU cycle
-                --if do_io_event='1' then
-                    dma_ack_i <= '1';
                     state <= stopped;
+                    if rwn_out_i='1' then
+                        dma_dack <= '1';
+                    end if;
                 end if;
 
             when others =>
-                null;                    
+                state <= idle;
 
             end case;
 
             drive_ah <= drive_al; -- one cycle later on (SSO)
-            if (dma_n_i='0' and aec_recovered='1') then
+            if (dma_n='0' and aec_recovered='1') then
                 drive_al <= '1';
             else
                 drive_al <= '0';
@@ -188,28 +162,26 @@ begin
 
             if reset='1' then
                 state           <= idle;
-                dma_n_i         <= '1';
-                c64_stopped     <= '0';
                 rwn_out_i       <= '1';
                 addr_out        <= (others => '1');
             end if;
         end if;
     end process;
     
-    dma_resp.dack <= dma_ack_i and rwn_out_i; -- only data-acknowledge reads
+    dma_resp.dack <= dma_dack;
     dma_resp.rack <= dma_rack;
-    dma_resp.data <= data_d(3) when dma_ack_i='1' and rwn_out_i='1' else X"00";
+    dma_resp.data <= data_d(3);
     
     -- by shifting the phi2 and anding it with the original, we make the write enable narrower,
     -- starting only halfway through the cycle. We should not be too fast!
-    DATA_tri      <= '1' when (dma_n_i='0' and aec_recovered='1' and phi2_dly(phi2_dly'high)='1' and rwn_out_i='0') else '0';
+    DATA_tri      <= '1' when (dma_n='0' and aec_recovered='1' and phi2_dly(phi2_dly'high)='1' and rwn_out_i='0') else '0';
                                
-    RWn_tri       <= drive_al; --'1' when (dma_n_i='0' and phi2_recovered='1' and ba_c='1') else '0';
+    RWn_tri       <= drive_al; --'1' when (dma_n='0' and phi2_recovered='1' and ba_c='1') else '0';
                                 
     ADDRESS_out   <= addr_out;
     ADDRESS_tri_h <= drive_ah;
     ADDRESS_tri_l <= drive_al;
     RWn_out       <= rwn_out_i;
-    DMAn          <= dma_n_i;
+    DMAn          <= dma_n;
 
 end gideon;

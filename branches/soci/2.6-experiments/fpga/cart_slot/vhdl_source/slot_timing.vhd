@@ -46,7 +46,6 @@ architecture gideon of slot_timing is
     
     signal phi2_tick_i  : std_logic;
     signal serve_en_i   : std_logic := '0';
-    signal off_cnt      : integer range 0 to 7;
 
     constant c_memdelay    : integer := 5;
     
@@ -71,17 +70,7 @@ begin
             phi2_d      <= phi2_c;
             phi2_tick_i <= '0';
             
-            -- Off counter, to allow software to gracefully quit
-            if serve_enable='1' and serve_inhibit='0' then
-                off_cnt <= 7;
-                serve_en_i <= '1';
-            elsif off_cnt = 0 then
-                serve_en_i <= '0';
-            elsif phi2_tick_i='1' and ba_c='1' then
-                off_cnt <= off_cnt - 1;
-                serve_en_i <= '1';
-            end if;
-
+            serve_en_i <= serve_enable and not serve_inhibit;
 --            if (phi2_rec_i='0' and allow_tick_h) or
 --               (phi2_rec_i='1' and allow_tick_l) then
 --                phi2_rec_i <= PHI2;
