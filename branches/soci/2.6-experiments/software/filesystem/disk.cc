@@ -91,7 +91,7 @@ int Disk::Init(void)
 //    dump_hex(tbl, 66);
 
     for(int p=0;p<4;p++) {
-        if(tbl[4]) {
+        if(tbl[4] && tbl[4] != 0xCF) { // skip CFS
             start = LD_DWORD(&tbl[8]);
             size  = LD_DWORD(&tbl[12]);
             if(tbl[4] == 0x0F) {
