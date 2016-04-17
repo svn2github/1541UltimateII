@@ -485,7 +485,7 @@ begin
                 nmi_n     <= '0';
             else
                 game_n    <= not cart_en or not mode_bits(0); -- Boots in 8K
-                game_n_or <= not aec_recovered;
+                game_n_or <= not aec_recovered and mode_bits(1);
                 exrom_n   <= not cart_en or mode_bits(1);
                 irq_n     <= not freeze_trig;
                 nmi_n     <= not freeze_trig;
