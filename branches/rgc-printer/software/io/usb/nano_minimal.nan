@@ -1,0 +1,1106 @@
+; Soft registers
+
+Offset_Command           = 0
+Offset_Command_DevEP     = 1
+Offset_Command_Length    = 2
+Offset_Command_MaxTrans  = 3
+Offset_Command_Interval  = 4
+Offset_Command_LastFrame = 5
+Offset_Command_SplitCtl  = 6
+Offset_Command_Result    = 7
+
+; Max number of pipes = 8: 8x8 = $40
+NUM_PIPES = 8
+Pipes    = 0x2E0
+PipesEnd = 0x320
+
+attrib_fifo      = 0x320 ; 128 entries (up to 39F)
+block_fifo       = 0x3A0 ; 64 entries (up to 3DF)
+
+Circ_MemAddr_Start_High = $3E0
+Circ_MemAddr_Start_Low  = $3E1
+Circ_Size               = $3E2
+Circ_Offset             = $3E3
+
+MemBlock_Base_High      = $3E4
+MemBlock_Base_Low       = $3E5
+
+RAM_STATUS            = $3E6
+
+User_Command          = $3F0
+User_Command_DevEP    = $3F1
+User_Command_Length   = $3F2
+User_Command_MaxTrans = $3F3
+User_Command_MemHi    = $3F4
+User_Command_MemLo    = $3F5
+User_Command_SplitCtl = $3F6
+User_Command_Result   = $3F7
+
+tail_pointer_atr = 0x3F8 ; updated by software only
+head_pointer_atr = 0x3F9 ; updated by nano only 
+tail_pointer_blk = 0x3FA ; updated by nano only
+head_pointer_blk = 0x3FB ; updated by software only
+
+DO_SUSPEND      = $3FC
+DO_RESET        = $3FD
+LinkSpeed       = $3FE
+Simulation      = $3FF
+
+; Read registers
+FILTERED_STAT_1 = $39
+FRAME_COUNTER   = $3B
+FRAME_TICK      = $3C ; clear on write
+MEM_CTRL_READY  = $3D
+DISCONNECTED    = $3E ; clear on write
+STATUS          = $3F
+
+; Write registers
+SPEED                = $26
+
+SET_DO_CHIRP         = $20
+SET_CHIRP_LEVEL      = $21
+;SET_CONNECTED        = $22
+;SET_OPERATIONAL      = $23
+;SET_SUSPENDED        = $24
+SET_SOF_ENABLE       = $27
+SEND_INTERRUPT       = $28
+CLR_DO_CHIRP         = $30
+CLR_CHIRP_LEVEL      = $31
+;CLR_CONNECTED        = $32
+;CLR_OPERATIONAL      = $33
+;CLR_SUSPENDED        = $34
+CLR_SOF_ENABLE       = $37
+
+PULSE_WAKEUP         = $25
+PULSE_RESET_FILTER   = $29
+
+; Command interface to USB sequencer
+CMD_REQUEST          = $60
+CMD_DATA_BUFFER_CTRL = $61
+CMD_DEVICE_ENDPOINT  = $62
+CMD_SPLIT_CONTROL    = $63
+CMD_RESPONSE         = $64
+
+CMD_REQ_MEMREAD      = $8000
+CMD_REQ_MEMWRITE     = $4000
+CMD_REQ_USEBLOCK     = $2000
+CMD_REQ_USECIRC      = $1000
+CMD_TOGGLE_BIT       = $0800
+CMD_TOGGLE_BIT_NOT   = $F7FF
+CMD_REQ_RETRY_ON_NAK = $0400
+CMD_REQ_PAUSED       = $0200
+CMD_REQ_NOT_PAUSED   = $FDFF
+CMD_REQ_DO_DATA      = $0040
+CMD_REQ_NOT_DO_DATA  = $FFBF
+CMD_REQ_POWER_OFF	 = $0003
+
+CMD_BUF_NODATA       = $2000
+
+CMD_RES_DATA         = $0000
+CMD_RES_ACK          = $1000
+CMD_RES_NAK          = $2000
+CMD_RES_NYET         = $3000
+CMD_RES_STALL        = $4000
+CMD_RES_ERROR        = $5000
+CMD_RES_MASK         = $7000
+CMD_RES_NO_DATA      = $0400
+CMD_RES_LEN_MASK     = $03FF
+
+SPLIT_COMPLETE       = $0080
+
+; Command interface to Memory Controller
+MEM_ADDR_LO          = $70
+MEM_ADDR_HI          = $71
+MEM_TRANSFER_WRITE   = $72
+MEM_TRANSFER_READ    = $73
+MEM_BUFFER_INDEX     = $74
+
+; Ulpi registers
+ULPI_REG_READ_0      = $80
+ULPI_REG_WRITE_0     = $C0
+ULPI_R_IRQ_STATUS  = $93
+ULPI_W_FUNC_CTRL   = $C4
+ULPI_W_OTG_CONTROL = $CA
+
+
+begin
+    ; turn off power first
+    LOAD  #$06
+    OUTP  ULPI_W_OTG_CONTROL
+    LOAD  #$45
+    OUTP  ULPI_W_FUNC_CTRL
+    LOAD  #0
+    STORE RAM_STATUS
+;    OUTP  CLR_CONNECTED
+;    OUTP  CLR_OPERATIONAL
+;    OUTP  CLR_SUSPENDED
+    OUTP  CLR_SOF_ENABLE
+    LOAD  Simulation
+    BEQ   start  ; Normal mode
+
+    ; Simulation init
+    LOAD  #$66
+    OUTP  ULPI_W_OTG_CONTROL  ; turn on our power
+_sim_restart
+;    OUTP  SET_CONNECTED
+    CALL  _reset_end
+;    OUTP  SET_OPERATIONAL
+    LOAD  #3
+    STORE RAM_STATUS 
+    OUTP  SET_SOF_ENABLE
+    OUTP  SEND_INTERRUPT
+    
+_waiting_for_reset_sim
+    CALL  check_command
+    CALL  check_pipes
+    LOAD  DO_RESET
+    BEQ   _waiting_for_reset_sim
+    LOAD  #0
+    STORE DO_RESET
+    STORE RAM_STATUS
+;    OUTP  CLR_OPERATIONAL
+;    OUTP  CLR_SOF_ENABLE
+    BRA   _sim_restart
+
+start
+    ; Turn off power and apply discharge
+    LOAD  #$0E
+    OUTP  ULPI_W_OTG_CONTROL
+;    BRA   _no_power
+    
+_startup_power_check    
+    INP   ULPI_R_IRQ_STATUS
+    AND   #6
+    BEQ   _no_power
+    ; power detected. Wait to see if discharging helps the power to disappear
+    LOAD  #4000
+    CALL  delay
+    INP   ULPI_R_IRQ_STATUS
+    AND   #2
+    BEQ   _no_power
+
+    ; still power detected, we should NOT turn on our power
+    LOAD  #$06
+    OUTP  ULPI_W_OTG_CONTROL
+    BRA   _start2
+
+_no_power
+    LOAD  #$66
+    OUTP  ULPI_W_OTG_CONTROL  ; turn on our power
+
+_start2
+    ; initialize our function control in FS mode, reset the transceivers and all
+    LOAD  #$61
+    OUTP  ULPI_W_FUNC_CTRL
+
+    ; wait 700 ms for the power to get stable and all. a loop to check when the power is stable might be good here
+    LOAD  ResetDelay
+    CALL  delay
+    
+    ; now lets see if we can detect that there is a device already attached
+    INP   STATUS
+    AND   #3
+    BNE   _device_detected ; one of the bits is '1', so someone is pulling it up
+
+    LOAD  #0
+    STORE RAM_STATUS
+    
+_wait_for_device_attachment
+    INP   STATUS
+    AND   #3
+    BEQ   _wait_for_device_attachment
+    BRA   _start2
+
+_device_detected
+    SUB   #1
+    XOR   #1
+    OUTP  SPEED
+    OUTP  DISCONNECTED
+    LOAD  #1
+    STORE RAM_STATUS
+    OUTP  SEND_INTERRUPT
+;    OUTP  SET_CONNECTED
+    
+_waiting_for_reset
+    LOAD  DO_RESET
+    BNE   do_reset
+    CALL  check_disconnect
+    BEQ   _waiting_for_reset
+_disconnected
+    OUTP  SEND_INTERRUPT
+    BRA   _start2
+    
+do_reset
+    ; there is a device present. Let's reset it
+    LOAD  #0
+    STORE DO_RESET
+    STORE RAM_STATUS
+;    OUTP  CLR_SOF_ENABLE
+;    OUTP  CLR_OPERATIONAL
+    CALL  bus_reset
+;    OUTP  CLR_SUSPENDED
+    LOAD  #3 ; cannot come without connected
+    STORE RAM_STATUS
+;    OUTP  SET_OPERATIONAL
+    OUTP  SET_SOF_ENABLE
+    LOAD  #2
+    CALL  delay
+    OUTP  DISCONNECTED
+    BRA   main_loop
+
+delay
+    STORE DelayTimer
+_delay
+    CALL  loop_timer
+    LOAD  DelayTimer
+    SUB   #1
+    STORE DelayTimer
+    BNE   _delay
+    RET    
+
+check_disconnect
+    INP   DISCONNECTED
+    BPL   _no_disconnect
+    OUTP  DISCONNECTED
+    STORE RAM_STATUS
+;    OUTP  CLR_CONNECTED
+;    OUTP  CLR_OPERATIONAL
+    OUTP  CLR_SOF_ENABLE
+_no_disconnect
+    RET
+
+main_loop
+    CALL  check_disconnect
+    BNE   _disconnected
+    LOAD  DO_RESET
+    BNE   do_reset
+    LOAD  DO_SUSPEND
+    BNE   do_suspend
+    CALL  check_command
+    CALL  check_pipes
+    BRA   main_loop
+
+do_suspend
+;    OUTP  SET_SUSPENDED
+    LOAD  RAM_STATUS
+    OR    #4
+    STORE RAM_STATUS
+    OUTP  CLR_SOF_ENABLE
+
+; Set PHY in the right suspend state
+    LOAD  LinkSpeed
+    AND   #3
+    ADD   #LinkRegisterMapSuspended
+    STORE _reset_temp
+    LOADI _reset_temp
+    OUTP  ULPI_W_FUNC_CTRL
+
+    LOAD  LinkSpeed
+    CMP   #2
+    BNE   suspend_loop
+    LOAD  #1
+    OUTP  SPEED  ; When we set the speed to 1 (HS), a different disconnect mechanism is selected.
+
+    LOAD  #4000
+    STORE _reset_temp
+_do_suspend_1
+    LOAD  _reset_temp
+    BEQ   _device_suspended ; timeout, recovery will take place due to the fact that we think the device is disconnected
+    SUB   #1
+    STORE _reset_temp
+    INP   STATUS
+    AND   #3
+    BNE   _device_suspended
+    CALL  loop_timer
+    BRA   _do_suspend_1
+
+_device_suspended
+    OUTP  DISCONNECTED
+    
+suspend_loop
+    CALL  check_disconnect
+    BNE   _start2
+    LOAD  DO_RESET
+    BNE   do_reset
+    LOAD  DO_SUSPEND
+    BEQ   do_unsuspend
+
+_chk_remote_wakekup
+    LOAD  LinkSpeed
+    BNE   _chk_remote_wakeup_fs
+
+_chk_remote_wakeup_ls
+    INP   STATUS
+    AND   #$03
+    CMP   #1
+    BNE   suspend_loop
+    CALL  loop_timer
+    INP   STATUS ; double check
+    AND   #$03
+    CMP   #1
+    BNE   suspend_loop
+    BRA   do_wakeup
+
+_chk_remote_wakeup_fs
+    INP   STATUS
+    AND   #$03
+    CMP   #2
+    BNE   suspend_loop
+    CALL  loop_timer
+    INP   STATUS ; double check
+    AND   #$03
+    CMP   #2
+    BNE   suspend_loop
+
+do_wakeup
+    OUTP  PULSE_WAKEUP
+    
+do_unsuspend
+    OUTP  CLR_CHIRP_LEVEL
+    ; Send K
+    OUTP  SET_DO_CHIRP
+    LOAD  #160
+    CALL  delay
+    OUTP  CLR_DO_CHIRP
+    CALL  _reset_end     ; set the mode register correctly (this also resets the SPEED register to 2 for HS)
+    LOAD  #32
+_do_unsuspend_1
+    SUB   #1
+    BPL   _do_unsuspend_1
+    OUTP  SET_SOF_ENABLE
+    CALL  loop_timer
+    CALL  loop_timer
+    LOAD  RAM_STATUS
+    AND   #$FFFB
+    STORE RAM_STATUS
+;    OUTP  CLR_SUSPENDED
+    BRA   main_loop
+    
+; The following code issues a reset, and tries to get the device in high speed mode
+
+bus_reset
+    ; first we check the current status of the bus power.
+;    INP   STATUS
+;    AND   #$38 ; 3C
+;    CMP   #$08 ; 0C
+;    BEQ   _reset_chk_ls
+;    LOAD  #3
+;    STORE LinkSpeed
+;    BRA _reset_end
+;
+_reset_chk_ls
+    INP   STATUS
+    AND   #$02
+    BEQ   _reset_fs
+    LOAD  #0
+    STORE LinkSpeed
+    BRA   _do_reset
+_reset_fs
+    LOAD  #1
+    STORE LinkSpeed
+
+_do_reset
+; now we set up the ULPI register to output single ended zero.
+    LOAD  #$50
+    OUTP  ULPI_W_FUNC_CTRL
+
+    LOAD  #120
+    STORE ResetTimer
+    OUTP  PULSE_RESET_FILTER
+    OUTP  FILTERED_STAT_1
+    
+    LOAD  LinkSpeed
+    BEQ   _reset_simple
+
+_reset_1
+    INP   FILTERED_STAT_1
+    BMI   _reset_chirp_heard
+    CALL  loop_timer
+    LOAD  ResetTimer
+    SUB   #1
+    STORE ResetTimer
+    BNE   _reset_1
+_reset_end
+    LOAD  LinkSpeed
+    OUTP  SPEED
+    AND   #3
+    ADD   #LinkRegisterMap
+    STORE _reset_temp
+    LOADI _reset_temp
+    OUTP  ULPI_W_FUNC_CTRL
+    OUTP  DISCONNECTED
+    RET
+_reset_temp
+    .dw 0
+_reset_chirp_heard    
+    LOAD  #2
+    STORE LinkSpeed
+    ; Just go ahead and send our chirp back
+    OUTP  CLR_CHIRP_LEVEL
+    OUTP  SET_DO_CHIRP
+    LOAD  NumberOfChirps
+    STORE ResetTimer
+_chirp_loop
+    OUTP  CLR_CHIRP_LEVEL
+    LOAD  #750
+_chirp_k
+    SUB   #1
+    BNE   _chirp_k
+    LOAD  ResetTimer
+    SUB   #1
+    STORE ResetTimer
+    BEQ   _chirps_done
+    OUTP  SET_CHIRP_LEVEL
+    LOAD  #750
+_chirp_j
+    SUB   #1
+    BNE   _chirp_j
+    BRA   _chirp_loop
+; done chirping
+_chirps_done
+    OUTP  CLR_DO_CHIRP
+    LOAD  #3
+    STORE ResetTimer
+_reset_simple
+    CALL  loop_timer
+    LOAD  ResetTimer
+    SUB   #1
+    STORE ResetTimer
+    BNE   _reset_simple
+    BRA   _reset_end
+
+loop_timer
+    LOAD  #1873
+_loop_timer_1
+    SUB   #1
+    BPL   _loop_timer_1
+    RET
+
+temp
+    .dw 0
+
+ResetTimer
+DelayTimer
+    .dw 0
+
+LinkRegisterMap
+    .dw $46
+    .dw $45
+    .dw $40
+    .dw $50
+
+LinkRegisterMapSuspended
+    .dw $56
+    .dw $55
+    .dw $55
+    .dw $50
+
+ResetDelay
+    .dw 5601
+NumberOfChirps
+    .dw 75
+
+
+check_command
+    LOAD User_Command
+;    CMP  User_Command
+;    BNE  check_command
+    BNE  _copy_user_cmd
+    RET ; zero = no command
+
+_copy_user_cmd
+    LOAD  User_Command
+    STORE Current_Command
+    LOAD  User_Command_DevEP
+    STORE Current_Command_DevEP    
+    LOAD  User_Command_Length
+    STORE Current_Command_Length   
+    LOAD  User_Command_MaxTrans
+    STORE Current_Command_MaxTrans 
+    LOAD  User_Command_MemHi
+    STORE Current_Command_MemHi    
+    LOAD  User_Command_MemLo
+    STORE Current_Command_MemLo    
+    LOAD  User_Command_SplitCtl
+    STORE Current_Command_SplitCtl 
+    CALL  _execute_cmd
+    LOAD  Current_Command_Result
+    STORE User_Command_Result
+    LOAD  Current_Command_Length
+    STORE User_Command_Length
+    LOAD  #0
+    STORE User_Command
+    RET
+    
+_execute_cmd
+    LOAD Current_Command_DevEP
+    OUTP CMD_DEVICE_ENDPOINT
+    LOAD #3
+    STORE AllowedErrors
+    LOAD  #0
+    STORE Transferred
+    LOAD  Current_Command
+    BMI   _out_command
+;	BRA   _start_in
+;	
+;	CMP   #CMD_REQ_POWER_OFF
+;	BNE   _start_in
+;   LOAD  #$0E
+;   OUTP  ULPI_W_OTG_CONTROL
+;_off
+;	BRA   _off   
+		
+_start_in
+    LOAD Current_Command_MemHi
+    OUTP MEM_ADDR_HI
+    LOAD Current_Command_MemLo
+    OUTP MEM_ADDR_LO
+; If we get here, we assume that it is an IN command
+_next_in_chunk
+    LOAD CurrentBuffer
+    OUTP CMD_DATA_BUFFER_CTRL
+    LOAD Current_Command_SplitCtl
+    OUTP CMD_SPLIT_CONTROL
+    LOAD Current_Command
+    OUTP CMD_REQUEST ; Do it!!
+    LOAD Current_Command_SplitCtl
+    BNE  _wait_in_cmd_ssplit
+_wait_in_cmd
+    INP  CMD_RESPONSE
+    BPL  _wait_in_cmd
+    STORE Current_Command_Result
+    AND  #CMD_RES_MASK
+    CMP  #CMD_RES_DATA
+    BEQ  _in_success
+    CMP  #CMD_RES_NAK
+    BEQ  _check_nak_response_in
+    CMP  #CMD_RES_NYET
+    BEQ  _try_complete_split_in
+    CMP  #CMD_RES_STALL
+    BEQ  _in_done
+    CMP  #CMD_RES_ERROR
+    BNE  _in_done ; I don't know how to handle this
+_check_in_error
+    LOAD  AllowedErrors
+    BEQ   _in_done ; no more!
+    SUB   #1
+    STORE AllowedErrors
+    BRA   _next_in_chunk ; Retry!
+
+_wait_in_cmd_ssplit
+    INP  CMD_RESPONSE
+    BPL  _wait_in_cmd_ssplit
+    STORE Current_Command_Result
+    AND  #CMD_RES_MASK
+    CMP  #CMD_RES_ACK
+    BNE  _check_in_error
+; ssplit got acked! yey!    
+
+_try_complete_split_in
+    CALL loop_timer
+    LOAD Current_Command_SplitCtl
+    OR   #SPLIT_COMPLETE
+    OUTP CMD_SPLIT_CONTROL
+    LOAD Current_Command
+    OUTP CMD_REQUEST ; Do it!!
+    BRA  _wait_in_cmd    
+
+_check_nak_response_in
+    LOAD Transferred
+    BNE  _next_in_chunk
+    LOAD Current_Command
+    AND  #CMD_REQ_RETRY_ON_NAK
+    BNE  _next_in_chunk
+    BRA  _in_done    
+
+_in_success
+    LOAD Current_Command_Result
+    AND  #CMD_RES_LEN_MASK
+    STORE CurrentLength
+    LOAD #3
+    STORE AllowedErrors
+
+_check_rx_toggle
+    LOAD Current_Command
+    XOR  Current_Command_Result
+    AND  #CMD_TOGGLE_BIT
+    BEQ  _toggle_ok
+    LOAD #0
+    STORE CurrentLength
+	BRA   _toggle_error
+	
+_toggle_ok
+    LOAD Current_Command
+    AND  #CMD_REQ_MEMWRITE
+    BEQ  _no_mem_write
+
+_wait_mem2
+    INP  MEM_CTRL_READY
+    BPL  _wait_mem2
+
+    LOAD CurrentBuffer
+    OUTP MEM_BUFFER_INDEX
+    LOAD CurrentLength
+    BEQ  _no_mem_write
+    ADD  #3
+    OUTP MEM_TRANSFER_WRITE     
+    LOAD  Transferred
+    ADD   CurrentLength
+    STORE Transferred
+    
+_no_mem_write
+    LOAD  Current_Command
+    XOR   #CMD_TOGGLE_BIT
+    STORE Current_Command
+
+_toggle_error
+    LOAD  CurrentBuffer
+    ADD   #$4000
+    STORE CurrentBuffer
+
+    LOAD Current_Command_Length
+    SUB  CurrentLength
+    STORE Current_Command_Length
+    BEQ  _in_done
+    BMI  _in_done
+    LOAD CurrentLength
+    CMP  Current_Command_MaxTrans
+    BPL  _next_in_chunk
+    
+_in_done
+    INP  MEM_CTRL_READY
+    BPL  _in_done
+    RET
+    
+do_mem_read
+    LOAD Current_Command_MemHi
+    OUTP MEM_ADDR_HI
+    LOAD Current_Command_MemLo
+    OUTP MEM_ADDR_LO
+    AND  #3
+    STORE Current_Word_Offset
+    LOAD CurrentBuffer
+    OUTP MEM_BUFFER_INDEX
+determine_length
+    LOAD Current_Command_Length
+    CMP  Current_Command_MaxTrans
+    BMI  _no_truncate
+    LOAD Current_Command_MaxTrans
+_no_truncate
+    STORE CurrentLength
+    ADD   #3
+    AND   #$FFFC
+    ADD   Current_Word_Offset
+    ADD   #3
+    OUTP  MEM_TRANSFER_READ
+    LOAD  Current_Command_MemLo
+    ADD   CurrentLength
+    STORE Current_Command_MemLo
+    LOAD  Current_Command_MemHi
+    ADDC  #0
+    STORE Current_Command_MemHi
+    RET
+        
+_out_command
+    CALL do_mem_read ; first time
+_next_out_chunk
+    LOAD CurrentLength
+    BNE  _has_data
+    OR   #CMD_BUF_NODATA
+_has_data
+    OR   CurrentBuffer
+    OUTP CMD_DATA_BUFFER_CTRL
+    LOAD Current_Command_SplitCtl
+    OUTP CMD_SPLIT_CONTROL
+
+_wait_mem1
+    INP  MEM_CTRL_READY
+    BPL  _wait_mem1
+
+    LOAD Current_Command
+    OUTP CMD_REQUEST ; Do it!!
+
+    ; Next buffer, lets see if we need to read more
+    LOAD  CurrentBuffer
+    ADD   #$4000
+    STORE CurrentBuffer
+
+    LOAD Current_Command_Length
+    SUB  CurrentLength
+    STORE Current_Command_Length
+    BEQ  _no_more_read_out
+
+    CALL do_mem_read ; second and subsequent times
+
+_no_more_read_out
+    LOAD Current_Command_SplitCtl
+    BNE  _wait_out_cmd_ssplit
+_wait_out_cmd
+    INP  CMD_RESPONSE
+    BPL  _wait_out_cmd
+    STORE Current_Command_Result
+    AND  #CMD_RES_MASK
+    CMP  #CMD_RES_ACK
+    BEQ  _out_success
+    CMP  #CMD_RES_NYET
+    BEQ  _check_nyet_response_out
+    CMP  #CMD_RES_NAK
+    BEQ  _check_nak_response_out
+    CMP  #CMD_RES_ERROR
+    BRA  _out_done  ; exit
+
+_wait_out_cmd_ssplit
+    INP   CMD_RESPONSE
+    BPL   _wait_out_cmd_ssplit
+    STORE Current_Command_Result
+    AND   #CMD_RES_MASK
+    CMP   #CMD_RES_ACK
+    BNE   _out_done ; exit
+
+    ; start split successful
+    LOAD  Current_Command_SplitCtl    
+    OR    #SPLIT_COMPLETE
+    OUTP  CMD_SPLIT_CONTROL
+_try_complete_out
+    CALL  loop_timer
+    LOAD  Current_Command
+    AND   #CMD_REQ_NOT_DO_DATA
+    OUTP  CMD_REQUEST
+    BRA   _wait_out_cmd
+
+_check_out_error
+    LOAD AllowedErrors
+    BEQ  _out_done ; exit
+    SUB  #1
+    STORE AllowedErrors
+    BRA  _retry_out
+    
+_out_success
+    LOAD  Current_Command
+    XOR   #CMD_TOGGLE_BIT
+    STORE Current_Command
+
+    LOAD  #3
+    STORE AllowedErrors
+    
+    LOAD  Transferred
+    ADD   CurrentLength
+    STORE Transferred
+
+    LOAD  Current_Command_Length
+    BNE  _next_out_chunk
+_out_done
+    LOAD  Current_Command
+    AND   #CMD_TOGGLE_BIT
+    STORE temp
+    LOAD  Current_Command_Result
+    AND   #CMD_TOGGLE_BIT_NOT
+    OR    temp
+    STORE Current_Command_Result
+    RET
+
+_check_nak_response_out
+    LOAD Current_Command
+    AND  #CMD_REQ_RETRY_ON_NAK
+    BEQ  _out_done
+_retry_out
+    LOAD Current_Command
+    OUTP CMD_REQUEST ; Do it!!
+    BRA  _wait_out_cmd
+
+_check_nyet_response_out
+    LOAD Current_Command_SplitCtl
+    BEQ  _out_success ; Should switch to PING, but we ignore that for now
+    BRA  _try_complete_out
+
+
+AllowedErrors
+    .dw 0
+Transferred
+    .dw 0
+CurrentLength
+    .dw 0
+CurrentBuffer
+    .dw 0
+Current_Command
+    .dw 0          
+Current_Command_DevEP    
+    .dw 0          
+Current_Command_Length   
+    .dw 0          
+Current_Command_MaxTrans 
+    .dw 0          
+Current_Command_MemHi    
+    .dw 0          
+Current_Command_MemLo    
+    .dw 0          
+Current_Command_SplitCtl 
+    .dw 0          
+Current_Command_Result   
+    .dw 0          
+Current_Word_Offset
+    .dw 0
+    
+PipeAddr
+    .dw 0
+PipeNumber
+    .dw 0
+    
+; Pipe check loop
+check_pipes
+    LOAD  #Pipes
+    STORE PipeAddr
+    LOAD  #0
+    STORE PipeNumber
+_chk_pipe
+    LOADI PipeAddr
+    STORE Current_Command
+    AND   #CMD_REQ_PAUSED
+    BEQ   _valid_pipe
+	
+_nxt_pipe
+    LOAD  PipeNumber
+    ADD   #1
+    STORE PipeNumber
+    LOAD  PipeAddr
+    ADD   #8
+    STORE PipeAddr
+    CMP   #PipesEnd
+    BNE   _chk_pipe
+_pipes_done
+    RET
+    
+Interval
+    .dw 0
+LastFrame
+    .dw 0
+BlockOffset
+    .dw 0
+    
+_valid_pipe
+    ; check interval
+    LOAD  PipeAddr
+    ADD   #Offset_Command_Interval
+    STORE temp
+    LOADI temp
+    STORE Interval
+
+    LOAD  PipeAddr
+    ADD   #Offset_Command_LastFrame
+    STORE temp
+    LOADI temp
+    STORE LastFrame
+    
+    INP   FRAME_COUNTER
+    SUB   LastFrame
+    ;; accu now holds time since last
+    CMP   Interval
+    BPL   _interval_ok
+    BRA    _nxt_pipe    
+
+store_last_frame
+    STORE  Interval
+    LOAD   PipeAddr
+    ADD    #Offset_Command_LastFrame
+    STORE  temp
+    LOAD   Interval
+    STORI  temp
+    RET
+        
+store_updated_command
+    STORE  Interval ;; just a temporary
+    LOAD   PipeAddr
+    ADD    #Offset_Command
+    STORE  temp
+    LOAD   Interval
+    STORI  temp
+    RET
+
+_interval_ok
+    INP   FRAME_COUNTER
+    CALL   store_last_frame
+
+_need_to_exectue
+    CALL  attr_fifo_full
+    BEQ   _nxt_pipe
+
+    LOAD  Current_Command
+    AND   #CMD_REQ_USEBLOCK
+    BNE   _prepare_block
+    LOADI PipeAddr
+    AND   #CMD_REQ_USECIRC
+    BNE   _prepare_circ
+    ; invalid -> no memory address
+    BRA   _nxt_pipe    
+
+_add_block_offset
+    LOAD  BlockOffset
+    ADD   Current_Command_MemLo
+    STORE Current_Command_MemLo
+    LOAD  Current_Command_MemHi
+    ADDC  #0
+    STORE Current_Command_MemHi
+    RET
+    
+_prepare_block
+    CALL  blk_fifo_empty
+    BEQ   _nxt_pipe    
+    CALL  blk_fifo_read
+    STORE BlockOffset
+
+    ;; calculate memory address (= MemBlock_Base + 4*fifo_value)
+    ADD   MemBlock_Base_Low
+    STORE Current_Command_MemLo
+    LOAD  MemBlock_Base_High
+    ADDC  #0
+    STORE Current_Command_MemHi
+
+    CALL  _add_block_offset ; *2
+    CALL  _add_block_offset ; *3
+    CALL  _add_block_offset ; *4
+    CALL  _other_params
+    CALL  _execute_cmd
+
+    LOAD  Current_Command
+    CALL  store_updated_command ; We do this to make sure we will expect the correct toggle next time
+
+    ;; Now what will we tell the host?  Was the transfer successful?
+    LOAD  Transferred
+    BEQ   _unsuccessful
+
+    LOAD  BlockOffset
+    OR    PipeNumber
+    CALL  attr_fifo_push
+    LOAD  Transferred
+    CALL  attr_fifo_push
+    OUTP  SEND_INTERRUPT
+    CALL  blk_fifo_adv
+    BRA   _nxt_pipe
+
+_prepare_circ
+    LOAD  Circ_MemAddr_Start_Low
+    ADD   Circ_Offset
+    STORE Current_Command_MemLo
+    LOAD  Circ_MemAddr_Start_High
+    ADDC  #0
+    STORE Current_Command_MemHi
+    CALL  _other_params
+    CALL  _execute_cmd
+
+    ;; Now what will we tell the host?  Was the transfer successful?
+    LOAD  Transferred
+    BEQ   _unsuccessful
+
+    LOAD  Current_Command
+	OR    #CMD_REQ_PAUSED ; we add the pause bit, so that it will only occur once
+    CALL  store_updated_command ; We do this to make sure we will expect the correct toggle next time
+
+    ;; report back to host
+    LOAD  Circ_Offset
+    OR    PipeNumber
+    CALL  attr_fifo_push ; address
+    LOAD  Transferred
+    CALL  attr_fifo_push ; length
+    OUTP  SEND_INTERRUPT
+
+    LOAD  Circ_Offset
+    ADD   #16
+    STORE Circ_Offset
+    CMP   Circ_Size
+    BNE   _nxt_pipe
+    LOAD  #0
+    STORE Circ_Offset
+    BRA   _nxt_pipe
+    
+_unsuccessful
+    LOAD Current_Command_Result
+    AND  #CMD_RES_MASK
+    CMP  #CMD_RES_NAK
+    BEQ  _nxt_pipe   ; we just got NAK, no worries, don't report    
+
+    LOAD #$FFF0
+    OR   PipeNumber
+    CALL attr_fifo_push
+    LOAD Current_Command_Result
+    CALL attr_fifo_push
+    OUTP  SEND_INTERRUPT
+    BRA  _nxt_pipe
+
+_other_params
+    LOAD  PipeAddr
+    ADD   #Offset_Command_DevEP
+    STORE temp
+    LOADI temp
+    STORE Current_Command_DevEP
+
+    LOAD  PipeAddr
+    ADD   #Offset_Command_Length
+    STORE temp
+    LOADI temp
+    STORE Current_Command_Length
+
+    LOAD  PipeAddr
+    ADD   #Offset_Command_MaxTrans
+    STORE temp
+    LOADI temp
+    STORE Current_Command_MaxTrans
+
+    LOAD  PipeAddr
+    ADD   #Offset_Command_SplitCtl
+    STORE temp
+    LOADI temp
+    STORE Current_Command_SplitCtl
+    RET
+
+; Buffer management:
+; Fifo with numeric values that are offsets to a base pointer, in dwords: 256K addressing space
+
+; BLOCK FIFO
+; check if fifo empty. Will return 0 (BEQ..) when fifo is empty
+blk_fifo_empty
+    LOAD head_pointer_blk
+	CMP  head_pointer_blk
+	BNE  blk_fifo_empty
+    CMP  tail_pointer_blk
+    RET
+    
+; get a value from the fifo
+blk_fifo_read
+    LOAD  tail_pointer_blk
+    ADD   #block_fifo
+    STORE fifo_temp_addr
+    LOADI fifo_temp_addr
+    RET
+    
+blk_fifo_adv
+    LOAD  tail_pointer_blk
+    ADD   #1
+    AND   #$3F
+    STORE tail_pointer_blk
+    RET
+
+; ATTRIBUTE FIFO
+attr_fifo_full
+    LOAD head_pointer_atr
+    ADD  #1
+    AND  #$7F
+    XOR  tail_pointer_atr
+    RET
+
+attr_fifo_push
+    STORE  fifo_temp_data
+    LOAD   head_pointer_atr
+    ADD    #attrib_fifo
+    STORE  fifo_temp_addr
+    LOAD   fifo_temp_data
+    STORI  fifo_temp_addr
+    LOAD   head_pointer_atr
+    ADD    #1
+    AND    #$7F
+    STORE  head_pointer_atr
+    RET
+    
+fifo_temp_data
+    .dw 0
+fifo_temp_addr
+    .dw 0

@@ -1,0 +1,144 @@
+; just to make it compile and easy to inspect
+
+	*=$0801
+	.word ss,2013
+	.null $9e,^start;sys
+ss	.word 0
+
+start
+    ; transfer drive code to drive, from $0400
+    ; open 1,8,15
+    lda #1  ; logical file
+    ldx #8  ; drive
+    ldy #15 ; secondary address: command channel
+    jsr $ffba ; SETLFS
+    lda #0  ; no filename
+    jsr $ffbd ; SETNAM
+    jsr $ffc0 ; OPEN
+
+    ; set pointer of code to send
+    lda #<drive_code_start
+    sta $fb
+    lda #>drive_code_start
+    sta $fc
+    ; set destination address in drive to $0400
+    lda #0
+    sta $fd
+    lda #4
+    sta $fe
+    
+    ; now loop for a total number of (drive_code_end - drive_code_start)/32
+    ldx #((drive_code_end - drive_code_start)+31)/32
+-   txa
+    pha
+    jsr send_code_block
+    pla
+    tax
+    dex
+    bne -
+
+    jsr send_execute
+    
+    ; now close file
+;    lda #1
+;    jsr $ffc3 ; CLOSE (not possible, because we are already executing)
+;
+    lda #$07
+    sta $dd00
+
+    rts
+    
+send_execute
+    lda #'E'
+    jsr $ffd2
+    ldx #1
+    jsr $ffc9
+    lda #'M'
+    jsr $ffd2
+    lda #'-'
+    jsr $ffd2
+    lda #'E'
+    jsr $ffd2
+    lda #0
+    jsr $ffd2
+    lda #4
+    jsr $ffd2
+    jsr $ffcc ; CLRCHN
+    lda #$0d
+    jsr $ffd2
+    rts
+    
+send_code_block ; pointer is in FB/FC
+    lda #'.'
+    jsr $ffd2
+    ldx #1
+    jsr $ffc9 ; CHKOUT
+    lda #'M'
+    jsr $ffd2
+    lda #'-'
+    jsr $ffd2
+    lda #'W'
+    jsr $ffd2
+    lda $fd
+    jsr $ffd2
+    lda $fe
+    jsr $ffd2
+    lda #$20
+    jsr $ffd2
+    ldy #0
+-   lda ($fb),y
+    jsr $ffd2
+    iny
+    cpy #32
+    bne -
+    jsr $ffcc ; CLRCHN
+    lda $fb
+    clc
+    adc #32
+    sta $fb
+    lda $fc
+    adc #0
+    sta $fc
+    lda $fd
+    clc
+    adc #32
+    sta $fd
+    lda $fe
+    adc #0
+    sta $fe
+    rts
+
+; -------------------------------------------------
+; -- DRIVE CODE 
+; -------------------------------------------------
+drive_code_start
+    .include ulticopy.tas
+    .here      
+drive_code_end
+
+
+; 0 01010
+; 1 01011
+; 2 10010
+; 3 10011
+; 4 01110
+; 5 01111
+; 6 10110
+; 7 10111
+; 8 01001
+; 9 11001
+; a 11010
+; b 11011
+; c 01101
+; d 11101
+; e 11110
+; f 10101
+;  $08 CHK SEC TRACK IDLO IDHI $0F $0F
+; 01010 01001 ????? ????? 0101s sssss ttttt ttttt ID 
+; 0101 0010 | 01-- ---- | ---- 0101 | ssss sstt | tttt tttt |
+;    $52      $40(&$c0)    $05(&$0f)   sec(>>2)
+; 
+;  $07
+; 01010 10111
+; 0101 0101 11 $55 $C0
+; 
