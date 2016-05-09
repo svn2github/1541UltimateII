@@ -42,6 +42,11 @@ _no_push2
             IF TALKER THEN _keep_data
             WAIT FOR 70 us
             SET DATA=1
+            WAIT UNTIL NOT ATN=0        # RGC ATN is not for us
+            LOAD $42
+            PUSHC
+            WAIT FOR 70 us
+            JUMP RELEASE
 _keep_data
             # at some time, the computer will either
             # 1) want us to talk
@@ -256,7 +261,13 @@ _dont_unlisten
             IF NOT DATABYTE IS $2A THEN _dont_listen
             SET LISTENER=1
             SET TALKER=0
-_dont_listen            
+_dont_listen
+            IF NOT DATABYTE IS $24 THEN _dont_print
+            LOAD $46
+            PUSHC
+            SET LISTENER=1
+            SET TALKER=0
+_dont_print
             RET
 
 # Below are some different error codes for debug

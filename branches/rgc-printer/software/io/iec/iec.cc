@@ -5,6 +5,7 @@ extern "C" {
 }
 #include "iec.h"
 #include "iec_channel.h"
+#include "iec_printer.h"
 #include "c64.h"
 #include "filemanager.h"
 #include "userinterface.h"
@@ -24,6 +25,7 @@ extern "C" {
 #define MENU_IEC_LOADFIRST   0xCA1B
 #define MENU_READ_STATUS     0xCA1C
 #define MENU_SEND_COMMAND    0xCA1D
+#define MENU_IEC_FLUSH       0xCA1E
    
 cart_def warp_cart  = { 0x00, (void *)0, 0x1000, 0x01 | CART_REU | CART_RAM };
 
@@ -33,13 +35,23 @@ extern uint32_t _iec_code_b_size;
 extern uint8_t _ulticopy_65_start;
 extern uint32_t _ulticopy_65_size;
 
-#define CFG_IEC_ENABLE   0x51
-#define CFG_IEC_BUS_ID   0x52
+#define CFG_IEC_ENABLE           0x51
+#define CFG_IEC_BUS_ID           0x52
+#define CFG_IEC_PRINTER_ID 	 0x30
+#define CFG_IEC_PRINTER_FILENAME 0x31
+#define CFG_IEC_PRINTER_TYPE     0x32
+#define CFG_IEC_PRINTER_DENSITY  0x33
 
 static const char *en_dis[] = { "Disabled", "Enabled" };
+static const char *pr_typ[] = { "RAW", "PNG" };
+static const char *pr_ink[] = { "Low", "Medium", "High" };
 static struct t_cfg_definition iec_config[] = {
-    { CFG_IEC_ENABLE,    CFG_TYPE_ENUM,   "IEC Drive",                 "%s", en_dis,     0,  1, 0 },
-    { CFG_IEC_BUS_ID,    CFG_TYPE_VALUE,  "1541 Drive Bus ID",         "%d", NULL,       8, 30, 10 },
+    { CFG_IEC_ENABLE,           CFG_TYPE_ENUM,   "IEC Drive and Printer","%s", en_dis, 0,  1, 0 },
+    { CFG_IEC_BUS_ID,           CFG_TYPE_VALUE,  "1541 Drive Bus ID",    "%d", NULL,   8, 30, 10 },
+    { CFG_IEC_PRINTER_ID,       CFG_TYPE_VALUE,  "Printer Bus ID",       "%d", NULL,   4,  5, 4 },
+    { CFG_IEC_PRINTER_FILENAME, CFG_TYPE_STRING, "Printer output file",  "%s", NULL,   1, 31, (int)"/SD/printer" },
+    { CFG_IEC_PRINTER_TYPE,     CFG_TYPE_ENUM,   "Printer output type",  "%s", pr_typ, 0,  1, 1 },
+    { CFG_IEC_PRINTER_DENSITY,  CFG_TYPE_ENUM,   "Printer ink density",  "%s", pr_ink, 0,  2, 1 },
     { 0xFF, CFG_TYPE_END,    "", "", NULL, 0, 0, 0 }
 };
 
@@ -173,7 +185,11 @@ IecInterface :: IecInterface() : SubSystem(SUBSYSID_IEC)
     current_channel = 0;
     talking = false;
     last_addr = 10;
+    last_printer_addr = 4;
     wait_irq = false;
+    printer = false;
+
+    channel_printer = new IecPrinter();
 
     effectuate_settings();
 
@@ -181,6 +197,8 @@ IecInterface :: IecInterface() : SubSystem(SUBSYSID_IEC)
         channels[i] = new IecChannel(this, i);
     }
     channels[15] = new IecCommandChannel(this, 15);
+    
+    channel_printer->init_done();
 
 	xTaskCreate( IecInterface :: iec_task, "IEC Server", configMINIMAL_STACK_SIZE, this, tskIDLE_PRIORITY + 2, &taskHandle );
 }
@@ -195,6 +213,8 @@ IecInterface :: ~IecInterface()
     }
     for(int i=0;i<16;i++)
         delete channels[i];
+
+    delete channel_printer;
     fm->release_path(path);
     fm->release_path(cmd_path);
 }
@@ -203,6 +223,7 @@ void IecInterface :: effectuate_settings(void)
 {
     uint32_t was_talk   = 0x18800040 + last_addr; // compare instruction
     uint32_t was_listen = 0x18800020 + last_addr;
+    uint32_t was_printer_listen = 0x18800020 + last_printer_addr;
     
 //            data = (0x08 << 20) + (bit << 24) + (inv << 29) + (addr << 8) + (value << 0)
     int bus_id = cfg->get_value(CFG_IEC_BUS_ID);
@@ -223,6 +244,24 @@ void IecInterface :: effectuate_settings(void)
         printf("Replaced: %d words.\n", replaced);
         last_addr = bus_id;    
     }
+    bus_id = cfg->get_value(CFG_IEC_PRINTER_ID);
+    if(bus_id != last_printer_addr) {
+        printf("Setting IEC printer ID to %d.\n", bus_id);
+        int replaced = 0;
+        for(int i=0;i<512;i++) {
+            if ((HW_IEC_RAM_DW[i] & 0x1F8000FF) == was_printer_listen) {
+                HW_IEC_RAM_DW[i] = (HW_IEC_RAM_DW[i] & 0xFFFFFF00) + bus_id + 0x20;
+                replaced ++;
+            }
+        } 
+        printf("Replaced: %d words.\n", replaced);
+        last_printer_addr = bus_id;   
+    }
+
+    channel_printer->set_filename(cfg->get_string(CFG_IEC_PRINTER_FILENAME));
+    channel_printer->set_output_type(cfg->get_value(CFG_IEC_PRINTER_TYPE));
+    channel_printer->set_ink_density(cfg->get_value(CFG_IEC_PRINTER_DENSITY));
+
     iec_enable = uint8_t(cfg->get_value(CFG_IEC_ENABLE));
     HW_IEC_RESET_ENABLE = iec_enable;
 }
@@ -232,6 +271,7 @@ int IecInterface :: fetch_task_items(Path *path, IndexedList<Action *> &list)
 {
     int count = 3;
 	list.append(new Action("Reset IEC",      SUBSYSID_IEC, MENU_IEC_RESET));
+	list.append(new Action("Flush printer spool", SUBSYSID_IEC, MENU_IEC_FLUSH));
 	//list.append(new Action("UltiCopy 8",     SUBSYSID_IEC, MENU_IEC_WARP_8));
 	//list.append(new Action("UltiCopy 9",     SUBSYSID_IEC, MENU_IEC_WARP_9));
 	// list.append(new Action("IEC Test 1",     SUBSYSID_IEC, MENU_IEC_MASTER_1));
@@ -292,7 +332,12 @@ int IecInterface :: poll()
                     break;
                 case 0x45:
                     printf("{end} ");
-                    channels[current_channel]->push_command(0);
+                    if (printer) {
+                        channel_printer->push_command(0xFF);
+                        printer = false;
+                    } else {
+                        channels[current_channel]->push_command(0);
+                    }
                     break;
                 case 0x41:
                     atn = true;
@@ -303,19 +348,31 @@ int IecInterface :: poll()
                     atn = false;
                     printf("<0> ", data);
                     break;
+                case 0x46:
+                    printer = true;
+                    channel_printer->push_command(0xFE);
+                    break;
                 default:
                     printf("<%b> ", data);
             }
         } else {
             if(atn) {
                 printf("[/%b] ", data);
-                if(data >= 0x60) { // workaround for passing of wrong atn codes talk/untalk
-                    current_channel = int(data & 0x0F);
-                    channels[current_channel]->push_command(data & 0xF0);
+                if(data >= 0x60) {  // workaround for passing of wrong atn codes talk/untalk
+                    if (printer) {
+                        channel_printer->push_command(data & 0x7);
+                    } else {
+                        current_channel = int(data & 0x0F);
+                        channels[current_channel]->push_command(data & 0xF0);
+                    }
                 }
             } else {
-                printf("[%b] ", data);
-                channels[current_channel]->push_data(data);
+                if (printer) {
+                    channel_printer->push_data(data);
+                } else {
+                    printf("[%b] ", data);
+                    channels[current_channel]->push_data(data);
+                }
             }
         }
     }
@@ -357,6 +414,9 @@ int IecInterface :: executeCommand(SubsysCommand *cmd)
 	switch(cmd->functionID) {
 		case MENU_IEC_RESET:
 			HW_IEC_RESET_ENABLE = iec_enable;
+			break;
+		case MENU_IEC_FLUSH:
+			channel_printer->flush();
 			break;
 		case MENU_IEC_WARP_8:
 			start_warp(8);
