@@ -21,8 +21,6 @@ SRCS_C   =	mbstart_rtos.c \
             ffsyscall.c \
             time.c
 
-# Note: mps_printer.cc must be after filemanager.cc but BEFORE iec.cc to make mps_printer singleton created before iec
-
 SRCS_CC	 =  small_printf.cc \
             stream.cc \
 			stream_uart.cc \
@@ -107,10 +105,10 @@ SRCS_CC	 =  small_printf.cc \
 			command_intf.cc \
 			dos.cc \
 			network_target.cc \
+			iec.cc \
 			mps_printer.cc \
 			mps_chargen.cc \
 			mps_charset.cc \
-			iec.cc \
 			lodepng.cc \
 			filetype_tap.cc \
             socket_stream.cc \

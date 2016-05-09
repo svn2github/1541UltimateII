@@ -89,9 +89,7 @@ class MpsPrinter
         unsigned short htab[MPS_PRINTER_MAX_HTABULATIONS];
 
         /* Page bitmap */
-    public:
         unsigned char bitmap[MPS_PRINTER_BITMAP_SIZE];
-
 
         // How many pages printed since start
         int page_num;
@@ -140,9 +138,6 @@ class MpsPrinter
         /* =======  Current spacing configuration */
         unsigned char step;     /* X spacing */
         unsigned char script;   /* Y spacing */
-
-        /* =======  Singleton */
-        static MpsPrinter m_mpsInstance;
 
 
         /*==============================================*/

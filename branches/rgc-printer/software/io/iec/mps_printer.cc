@@ -183,9 +183,10 @@ MpsPrinter::~MpsPrinter()
 *                                                                       *
 ************************************************************************/
 
-MpsPrinter MpsPrinter::m_mpsInstance = MpsPrinter();
 MpsPrinter *MpsPrinter::getMpsPrinter()
 {
+    // The singleton is here, static
+    static MpsPrinter m_mpsInstance;
     return &m_mpsInstance;
 }
 
