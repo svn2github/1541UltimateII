@@ -776,7 +776,7 @@ MpsPrinter::CharDraft(unsigned short c, int x, int y)
 int
 MpsPrinter::CharNLQ(unsigned short c, int x, int y)
 {
-    /* =======  Check is chargen is in draft chargen range */
+    /* =======  Check is chargen is in NLQ chargen range */
     if (c > 403) return 0;
 
     unsigned char lst_head_low = 0;     // Last low printed pattern to calculate reverse
@@ -786,9 +786,40 @@ MpsPrinter::CharNLQ(unsigned short c, int x, int y)
     /* =======  For each value of the pattern */
     for (int i=0; i<12; i++)
     {
-        /* -------  Last is always 0 */
-        unsigned char cur_head_high = (i==11)?0:chargen_nlq_high[c][i];
-        unsigned char cur_head_low = (i==11)?0:chargen_nlq_low[c][i];
+        unsigned char cur_head_high;
+        unsigned char cur_head_low;
+        
+        /* -------  Calculate last column */
+        if (i==11)
+        {
+            if (chargen_nlq_high[c][11] & 0x04)
+            {
+                /* Repeat last colums */
+                cur_head_high = chargen_nlq_high[c][10];
+            }
+            else
+            {
+                /* Blank column */
+                cur_head_high = 0;
+            }
+            
+            if (chargen_nlq_low[c][11] & 0x04)
+            {
+                /* Repeat last colums */
+                cur_head_low = chargen_nlq_low[c][10];
+            }
+            else
+            {
+                /* Blank column */
+                cur_head_low = 0;
+            }
+        }
+        else
+        {
+            /* Not on last column, get data from chargen table */
+            cur_head_high = chargen_nlq_high[c][i];
+            cur_head_low = chargen_nlq_low[c][i];
+        }
 
         /* -------  Reverse is negative printing */
         if (reverse)
