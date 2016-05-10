@@ -37,7 +37,7 @@
 *                                                                       *
 ************************************************************************/
 
-unsigned char MpsPrinter::spacing_x[7][13] =
+uint8_t MpsPrinter::spacing_x[7][13] =
 {
     {  0, 2, 4, 6, 8,10,12,14,16,18,20,22,24 },    // Pica              24px/char
     {  0, 2, 3, 5, 7, 8,10,12,13,15,17,19,20 },    // Elite             20px/char
@@ -48,7 +48,7 @@ unsigned char MpsPrinter::spacing_x[7][13] =
     {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8 },    // Micro Compressed  8px/char
 };
 
-unsigned char MpsPrinter::spacing_y[6][17] =
+uint8_t MpsPrinter::spacing_y[6][17] =
 {
     {  0, 3, 6, 9,12,15,18,21,24,27,30,33,36,39,42,45,48 },    // Normal Draft & NLQ High
     {  2, 5, 8,11,14,17,20,23,26,28,32,35,38,41,44,47,50 },    // Normal NLQ Low
@@ -88,11 +88,11 @@ MpsPrinter::MpsPrinter(char * filename)
     /* =======  Default H tabulations */
     for (int i=0; i<32; i++)
     {
-        htab[i] = (i+1)*24*8;
+        htab[i] = 168+i*24*8;
     }
 
     /* =======  Default printer attributes */
-    dot_size      = 2;
+    dot_size      = 1;
     step          = 0;
     script        = 0;
     interline     = 36;
@@ -136,10 +136,10 @@ MpsPrinter::MpsPrinter(char * filename)
     lodepng_state.info_raw.colortype        = LCT_PALETTE;
     lodepng_state.info_raw.bitdepth         = 2;
 
-    /* Physical page description */
+    /* Physical page description (A4 240x216 dpi) */
     lodepng_state.info_png.phys_defined     = 1;
-    lodepng_state.info_png.phys_x           = 8685;
-    lodepng_state.info_png.phys_y           = 8685;
+    lodepng_state.info_png.phys_x           = 9448;
+    lodepng_state.info_png.phys_y           = 8687;
     lodepng_state.info_png.phys_unit        = 1;
 
     /* I rule, you don't */
@@ -226,7 +226,7 @@ MpsPrinter::setFilename(char * filename)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    cs : (char) New Commodore 64 Charset                               *
+*    cs : (uint8_t) New Commodore 64 Charset                            *
 *               0 - Uppercases/Graphics                                 *
 *               1 - Lowercases/Uppercases                               *
 *                                                                       *
@@ -238,7 +238,7 @@ MpsPrinter::setFilename(char * filename)
 ************************************************************************/
 
 void
-MpsPrinter::setCBMCharset(char cs)
+MpsPrinter::setCBMCharset(uint8_t cs)
 {
     if (cs !=0 && cs != 1)
         return;
@@ -253,7 +253,7 @@ MpsPrinter::setCBMCharset(char cs)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    ds : (char) New dot size                                           *
+*    ds : (uint8_t) New dot size                                        *
 *               0 - 1 pixe diameter like                                *
 *               1 - 2 pixels diameter like                              *
 *               2 - 3 pixels diameter like                              *
@@ -266,9 +266,8 @@ MpsPrinter::setCBMCharset(char cs)
 ************************************************************************/
 
 void
-MpsPrinter::setDotSize(char ds)
+MpsPrinter::setDotSize(uint8_t ds)
 {
-    if (ds <0) ds = 0;
     if (ds >2) ds = 2;
     dot_size = ds;
 }
@@ -353,7 +352,7 @@ MpsPrinter::FormFeed(void)
 void
 MpsPrinter::Print(const char * filename)
 {
-    unsigned char *buffer;
+    uint8_t *buffer;
     size_t outsize;
 
     buffer=NULL;
@@ -390,8 +389,8 @@ MpsPrinter::Print(const char * filename)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    x : (int) pixel position from left of printable area of page       *
-*    y : (int) pixel position from top of printable area of page        *
+*    x : (uint16_t) pixel position from left of printable area of page  *
+*    y : (uint16_t) pixel position from top of printable area of page   *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -401,12 +400,12 @@ MpsPrinter::Print(const char * filename)
 ************************************************************************/
 
 void
-MpsPrinter::Dot(int x, int y)
+MpsPrinter::Dot(uint16_t x, uint16_t y)
 {
     /* =======  Check if position is out of range */
 
-    if ((x < 0) ||( x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH ) ||
-        (y < 0) ||( y > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT )) return;
+    if ( x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH  ||
+         y > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT ) return;
 
     /* =======  Draw dot */
 
@@ -466,16 +465,17 @@ MpsPrinter::Dot(int x, int y)
 }
 
 /************************************************************************
-*                               MpsPrinter::Ink(x,y)          Private   *
-*                               ~~~~~~~~~~~~~~~~~~~~                    *
+*                             MpsPrinter::Ink(x,y,c)          Private   *
+*                             ~~~~~~~~~~~~~~~~~~~~~~                    *
 * Function : Add ink on a single pixel position. If ink as already been *
 *            added on this position it will add more ink to be darker   *
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    x : (int) pixel position from left of printable area of page       *
-*    y : (int) pixel position from top of printable area of page        *
-*    c : (int) grey level 0=black (default), 1=dark grey, 2= light grey *
+*    x : (uint16_t) pixel position from left of printable area of page  *
+*    y : (uint16_t) pixel position from top of printable area of page   *
+*    c : (uint8_t) grey level                                           *
+*        0=black (default), 1=dark grey, 2=light grey                   *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -485,18 +485,18 @@ MpsPrinter::Dot(int x, int y)
 ************************************************************************/
 
 void
-MpsPrinter::Ink(int x, int y, int c)
+MpsPrinter::Ink(uint16_t x, uint16_t y, uint8_t c)
 {
     /* =======  Calculate true x and y position on page */
-    int tx=x+MPS_PRINTER_PAGE_MARGIN_LEFT;
-    int ty=y+MPS_PRINTER_PAGE_MARGIN_TOP;
-    int current;
+    uint16_t tx=x+MPS_PRINTER_PAGE_MARGIN_LEFT;
+    uint16_t ty=y+MPS_PRINTER_PAGE_MARGIN_TOP;
+    uint8_t current;
 
-    /* -------  Which byte is it on raster buffer */
-    int byte = ((ty*MPS_PRINTER_PAGE_WIDTH+tx)*MPS_PRINTER_PAGE_DEPTH)>>3;
+    /* -------  Which byte address is it on raster buffer */
+    uint32_t byte = ((ty*MPS_PRINTER_PAGE_WIDTH+tx)*MPS_PRINTER_PAGE_DEPTH)>>3;
 
     /* -------  Whitch bits on byte are coding the pixe (4 pixels per byte) */
-    int sub = tx & 0x3;
+    uint8_t sub = tx & 0x3;
     c &= 0x3;
 
     /* =======  Add ink to the pixel */
@@ -545,12 +545,12 @@ MpsPrinter::Ink(int x, int y, int c)
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) resulting grey level (in range range 0-3)                    *
+*    (uint8_t) resulting grey level (in range range 0-3)                *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::Combine(int c1, int c2)
+uint8_t
+MpsPrinter::Combine(uint8_t c1, uint8_t c2)
 {
         /*-
          *
@@ -566,7 +566,7 @@ MpsPrinter::Combine(int c1, int c2)
          *
         -*/
 
-    int result = c1 + c2;
+    uint8_t result = c1 + c2;
     if (result > 3) result = 3;
     return result;
 }
@@ -578,31 +578,31 @@ MpsPrinter::Combine(int c1, int c2)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned short) char from italic chargen table                *
-*    x : (int) first pixel position from left of printable area of page *
-*    y : (int) first pixel position from top of printable area of page  *
+*    c : (uint16_t) char from italic chargen table                      *
+*    x : (uint16_t) first pixel position from left of printable area    *
+*    y : (uint16_t) first pixel position from top of printable area     *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) printed char width (in pixels)                               *
+*    (uint16_t) printed char width (in pixels)                          *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::CharItalic(unsigned short c, int x, int y)
+uint16_t
+MpsPrinter::CharItalic(uint16_t c, uint16_t x, uint16_t y)
 {
     /* =======  Check is chargen is in italic chargen range */
     if (c > 128) return 0;
 
-    unsigned char lst_head = 0;         // Last printed pattern to calculate reverse
-    unsigned char shift = chargen_italic[c][11] & 1;    // 8 down pins from 9 ?
+    uint8_t lst_head = 0;         // Last printed pattern to calculate reverse
+    uint8_t shift = chargen_italic[c][11] & 1;    // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
     for (int i=0; i<12; i++)
     {
         /* -------  Last is always 0 */
-        unsigned char cur_head = (i==11)?0:chargen_italic[c][i];
+        uint8_t cur_head = (i==11)?0:chargen_italic[c][i];
 
         /* -------  Reverse is negative printing */
         if (reverse)
@@ -616,7 +616,7 @@ MpsPrinter::CharItalic(unsigned short c, int x, int y)
         for (int d=0; d<(double_width?2:1); d++)
         {
             /* This is what we'll print */
-            unsigned char head = cur_head;
+            uint8_t head = cur_head;
 
             /* Calculate x position according to width and stepping */
             int dx = x + ((spacing_x[step][i]+d*spacing_x[step][1])<<(double_width?1:0));
@@ -667,31 +667,31 @@ MpsPrinter::CharItalic(unsigned short c, int x, int y)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned short) char from draft chargen table                 *
-*    x : (int) first pixel position from left of printable area of page *
-*    y : (int) first pixel position from top of printable area of page  *
+*    c : (uint16_t) char from draft chargen table                       *
+*    x : (uint16_t) first pixel position from left of printable area    *
+*    y : (uint16_t) first pixel position from top of printable area     *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) printed char width (in pixels)                               *
+*    (uint16_t) printed char width (in pixels)                          *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::CharDraft(unsigned short c, int x, int y)
+uint16_t
+MpsPrinter::CharDraft(uint16_t c, uint16_t x, uint16_t y)
 {
     /* =======  Check is chargen is in draft chargen range */
     if (c > 403) return 0;
 
-    unsigned char lst_head = 0; // Last printed pattern to calculate reverse
-    unsigned char shift = chargen_draft[c][11] & 1;     // 8 down pins from 9 ?
+    uint8_t lst_head = 0; // Last printed pattern to calculate reverse
+    uint8_t shift = chargen_draft[c][11] & 1;     // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
     for (int i=0; i<12; i++)
     {
         /* -------  Last is always 0 */
-        unsigned char cur_head = (i==11)?0:chargen_draft[c][i];
+        uint8_t cur_head = (i==11)?0:chargen_draft[c][i];
 
         /* -------  Reverse is negative printing */
         if (reverse)
@@ -705,7 +705,7 @@ MpsPrinter::CharDraft(unsigned short c, int x, int y)
         for (int d=0; d<(double_width?2:1); d++)
         {
             /* This is what we'll print */
-            unsigned char head = cur_head;
+            uint8_t head = cur_head;
 
             /* Calculate x position according to width and stepping */
             int dx = x + ((spacing_x[step][i]+d*spacing_x[step][1])<<(double_width?1:0));
@@ -762,33 +762,33 @@ MpsPrinter::CharDraft(unsigned short c, int x, int y)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned short) char from draft nlq (high and low) table      *
-*    x : (int) first pixel position from left of printable area of page *
-*    y : (int) first pixel position from top of printable area of page  *
+*    c : (uint16_t) char from draft nlq (high and low) table            *
+*    x : (uint16_t) first pixel position from left of printable area    *
+*    y : (uint16_t) first pixel position from top of printable area     *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) printed char width (in pixels)                               *
+*    (uint16_t) printed char width (in pixels)                          *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::CharNLQ(unsigned short c, int x, int y)
+uint16_t
+MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
 {
     /* =======  Check is chargen is in NLQ chargen range */
     if (c > 403) return 0;
 
-    unsigned char lst_head_low = 0;     // Last low printed pattern to calculate reverse
-    unsigned char lst_head_high = 0;    // Last high printed pattern to calculate reverse
-    unsigned char shift = chargen_nlq_high[c][11] & 1;  // 8 down pins from 9 ?
+    uint8_t lst_head_low = 0;     // Last low printed pattern to calculate reverse
+    uint8_t lst_head_high = 0;    // Last high printed pattern to calculate reverse
+    uint8_t shift = chargen_nlq_high[c][11] & 1;  // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
     for (int i=0; i<12; i++)
     {
-        unsigned char cur_head_high;
-        unsigned char cur_head_low;
-        
+        uint8_t cur_head_high;
+        uint8_t cur_head_low;
+
         /* -------  Calculate last column */
         if (i==11)
         {
@@ -802,7 +802,7 @@ MpsPrinter::CharNLQ(unsigned short c, int x, int y)
                 /* Blank column */
                 cur_head_high = 0;
             }
-            
+
             if (chargen_nlq_low[c][11] & 0x04)
             {
                 /* Repeat last colums */
@@ -834,7 +834,7 @@ MpsPrinter::CharNLQ(unsigned short c, int x, int y)
         }
 
         /* -------  First we start with the high pattern */
-        unsigned char head = cur_head_high;
+        uint8_t head = cur_head_high;
 
         /* Calculate x position according to width and stepping */
         int dx = x + (spacing_x[step][i]<<(double_width?1:0));
@@ -929,19 +929,19 @@ MpsPrinter::CharNLQ(unsigned short c, int x, int y)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned short) record to print                               *
-*    x : (int) first pixel position from left of printable area of page *
-*    y : (int) first pixel position from top of printable area of page  *
+*    c : (uint16_t) record to print                                     *
+*    x : (uint16_t) first pixel position from left of printable area    *
+*    y : (uint16_t) first pixel position from top of printable area     *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) printed width (in pixels)                                    *
+*    (uint16_t) printed width (in pixels)                               *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::Bim(unsigned char head)
+uint16_t
+MpsPrinter::Bim(uint8_t head)
 {
     /* This is to help to compute the interline spacing but too simplistic */
     bim_only = true;    // ERROR to correct, not true if chars already printed
@@ -969,8 +969,8 @@ MpsPrinter::Bim(unsigned char head)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    buffer : (unsigned char *) Buffer to interpret                     *
-*    size   : (int) bytes in buffer to interpret                        *
+*    buffer : (uint8_t *) Buffer to interpret                           *
+*    size   : (uint32_t) bytes in buffer to interpret                   *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -980,7 +980,7 @@ MpsPrinter::Bim(unsigned char head)
 ************************************************************************/
 
 void
-MpsPrinter::Interpreter(const unsigned char * input, unsigned long size)
+MpsPrinter::Interpreter(const uint8_t * input, uint32_t size)
 {
     /* =======  Call the other Interpreter method on each byte */
     while(size-- > 0)
@@ -997,7 +997,7 @@ MpsPrinter::Interpreter(const unsigned char * input, unsigned long size)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned char) Byte code to test                              *
+*    c : (uint8_t) Byte code to test                                    *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -1007,7 +1007,7 @@ MpsPrinter::Interpreter(const unsigned char * input, unsigned long size)
 ************************************************************************/
 
 bool
-MpsPrinter::IsPrintable(unsigned char input)
+MpsPrinter::IsPrintable(uint8_t input)
 {
     /* In charset Table non printables are coded 500 */
     return (charset_cbm_us[cbm_charset][input] == 500) ? false : true;
@@ -1020,24 +1020,24 @@ MpsPrinter::IsPrintable(unsigned char input)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned char) Byte code to convert                           *
+*    c : (uint8_t) Byte code to convert                                 *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (unsigned short) chargen code.                                     *
+*    (uint16_t) chargen code.                                           *
 *  will be 500 if non printable                                         *
 *  will be >=1000 if italic (sub 1000 to get italic chargen code)       *
 *                                                                       *
 ************************************************************************/
 
-unsigned short
-MpsPrinter::Charset2Chargen(unsigned char input)
+uint16_t
+MpsPrinter::Charset2Chargen(uint8_t input)
 {
     /* =======  Italic is enabled, get italic code if not 500 */
     if (italic)
     {
-        unsigned short charnum = charset_italic_cbm_us[cbm_charset][input];
+        uint16_t charnum = charset_italic_cbm_us[cbm_charset][input];
         if (charnum != 500) return 1000+charnum;
     }
 
@@ -1053,17 +1053,17 @@ MpsPrinter::Charset2Chargen(unsigned char input)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    c : (unsigned short) Chargen code to print (+1000 if italic)       *
+*    c : (uint16_t) Chargen code to print (+1000 if italic)             *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
 *                                                                       *
-*    (int) printed char width                                           *
+*    (uint16_t) printed char width                                      *
 *                                                                       *
 ************************************************************************/
 
-int
-MpsPrinter::Char(unsigned short c)
+uint16_t
+MpsPrinter::Char(uint16_t c)
 {
     /* So we are not printing only BIM data (to be resolved better) */
     bim_only = false;
@@ -1096,7 +1096,7 @@ MpsPrinter::Char(unsigned short c)
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
-*    data : (unsigned char *) Single data to interpret                  *
+*    data : (uint8_t *) Single data to interpret                        *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -1106,7 +1106,7 @@ MpsPrinter::Char(unsigned short c)
 ************************************************************************/
 
 void
-MpsPrinter::Interpreter(unsigned char input)
+MpsPrinter::Interpreter(uint8_t input)
 {
     switch(state)
     {
@@ -1133,6 +1133,7 @@ MpsPrinter::Interpreter(unsigned char input)
 
             /* =======  Select action if command char received */
             cbm_command = input;
+            cbm_param_count = 0;
             switch(input)
             {
                 case 0x08:   // BIT IMG: bitmap image
@@ -1188,7 +1189,8 @@ MpsPrinter::Interpreter(unsigned char input)
                     double_width = false;
                     break;
 
-                case 0x10:   // POS: Set horizontal tab in number of chars
+                case 0x10:   // POS: Jump to horizontal position in number of chars
+                    state = MPS_PRINTER_STATE_PARAM;
                     break;
 
                 case 0x11:   // CRSR DWN: Upper/lower case printing
@@ -1247,11 +1249,11 @@ MpsPrinter::Interpreter(unsigned char input)
         // =======  Escape sequences
         case MPS_PRINTER_STATE_ESC:
             esc_command = input;
+            esc_param_count = 0;
             switch (input)
             {
-                case 0x10:  // ESC POS: Set the horizontal tab in number of dots
+                case 0x10:  //ESC POS : Jump to horizontal position in number of dots
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    esc_param_count = 0;
                     break;
 
                 case 0x2D:  // ESC - : Underline on/off
@@ -1332,7 +1334,8 @@ MpsPrinter::Interpreter(unsigned char input)
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
-                case 0x5B:  // ESC | : Print style selection
+                case 0x5B:  // ESC [ : Print style selection
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 default:
@@ -1343,8 +1346,25 @@ MpsPrinter::Interpreter(unsigned char input)
 
         // =======  Escape sequence parameters
         case MPS_PRINTER_STATE_ESC_PARAM:
+            esc_param_count++;
             switch(esc_command)
             {
+                case 0x10:  // ESC POS : Jump to horizontal position in number of dots
+                    if (esc_param_count == 1) param_build = input << 8;
+                    if (esc_param_count == 2)
+                    {
+                        param_build |= input;
+                        param_build <<= 2;
+
+                        if ((param_build < MPS_PRINTER_PAGE_PRINTABLE_WIDTH) && param_build > head_x)
+                        {
+                            head_x = param_build;
+                        }
+
+                        state = MPS_PRINTER_STATE_NORMAL;
+                    }
+                    break;
+
                 case 0x43:  // ESC c : Set form length
                     // Ignored in this version
                     if (input != 0)
@@ -1383,53 +1403,47 @@ MpsPrinter::Interpreter(unsigned char input)
                     break;
 
                 case 0x53:  // ESC S : Superscript/subscript printing
-                    switch (input)
-                    {
-                        case 0x00:  // Superscript
-                        case 0x30:
-                            script = 2;
-                            break;
-
-                        case 0x01:  // Subscript
-                        case 0x31:
-                            script = 4;
-                            break;
-                    }
+                    script = input & 0x01 ? 4 : 2;
                     state = MPS_PRINTER_STATE_NORMAL;
                     break;
 
                 case 0x2D:  // ESC - : Underline on/off
-                    switch (input)
-                    {
-                        case 0x00:  // Underline off
-                        case 0x30:
-                            underline = false;
-                            break;
-
-                        case 0x01:  // Underline on
-                        case 0x31:
-                            underline = true;
-                            break;
-                    }
+                    underline = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_NORMAL;
                     break;
 
                 case 0x58:  // ESC x : DRAFT/NLQ print mode selection
-                    switch (input)
-                    {
-                        case 0x00:  // Draft
-                        case 0x30:
-                            nlq = false;
-                            break;
-
-                        case 0x01:  // NLQ
-                        case 0x31:
-                            nlq = true;
-                            break;
-                    }
+                    nlq = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_NORMAL;
                     break;
 
+                case 0x5B:  // ESC [ : Print style selection (pica, elite, ...)
+                    uint8_t new_step = input & 0x0F;
+                    if (new_step < 7)
+                        step = new_step;
+                    state = MPS_PRINTER_STATE_NORMAL;
+                    break;
+            }
+            break;
+
+        // =======  Escape sequence parameters
+        case MPS_PRINTER_STATE_PARAM:
+            cbm_param_count++;
+            switch(cbm_command)
+            {
+                case 0x10:  // POS : Jump to horizontal position in number of chars
+                    if (cbm_param_count == 1) param_build = input & 0x0F;
+                    if (cbm_param_count == 2)
+                    {
+                        param_build = (param_build * 10) + (input & 0x0F);
+                        if (param_build < 80 && (param_build * 24 ) > head_x)
+                        {
+                            head_x = 24 * param_build;
+                        }
+
+                        state = MPS_PRINTER_STATE_NORMAL;
+                    }
+                    break;
             }
             break;
 
@@ -1455,9 +1469,9 @@ MpsPrinter::Interpreter(unsigned char input)
 
 /*
 void
-MpsPrinter::PrintString(const char *s, int x, int y)
+MpsPrinter::PrintString(const char *s, uint16_t x, uint16_t y)
 {
-    unsigned char *c = (unsigned char*) s;
+    uint8_t *c = (uint8_t*) s;
 
     while (*c)
     {
@@ -1468,9 +1482,9 @@ MpsPrinter::PrintString(const char *s, int x, int y)
 }
 
 void
-MpsPrinter::PrintStringNlq(const char *s, int x, int y)
+MpsPrinter::PrintStringNlq(const char *s, uint16_t x, uint16_t y)
 {
-    unsigned char *c = (unsigned char*) s;
+    uint8_t *c = (uint8_t*) s;
 
     while (*c)
     {

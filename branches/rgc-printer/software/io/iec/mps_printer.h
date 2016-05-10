@@ -31,6 +31,7 @@
 #include "filemanager.h"
 #endif
 
+#include <stdint.h>
 #include "lodepng.h"
 
 /*******************************  Constants  ****************************/
@@ -50,7 +51,7 @@
 
 typedef enum mps_printer_states {
     MPS_PRINTER_STATE_NORMAL,
-    MPS_PRINTER_STATE_PARM,
+    MPS_PRINTER_STATE_PARAM,
     MPS_PRINTER_STATE_ESC,
     MPS_PRINTER_STATE_ESC_PARAM,
     MPS_PRINTER_STATE_BIM
@@ -65,45 +66,45 @@ class MpsPrinter
     private:
         /* =======  Embeded data */
         /* Char Generators (bitmap definition of each character) */
-        static unsigned char chargen_italic[129][12];
-        static unsigned char chargen_nlq_low[404][12];
-        static unsigned char chargen_nlq_high[404][12];
-        static unsigned char chargen_draft[404][12];
+        static uint8_t chargen_italic[129][12];
+        static uint8_t chargen_nlq_low[404][12];
+        static uint8_t chargen_nlq_high[404][12];
+        static uint8_t chargen_draft[404][12];
 
         /* Charsets (CBM and other ASCII) */
-        static unsigned short charset_cbm_us[2][256];
-        static unsigned short charset_italic_cbm_us[2][256];
-        //static unsigned short charset_epson_basic[256];
+        static uint16_t charset_cbm_us[2][256];
+        static uint16_t charset_italic_cbm_us[2][256];
+        //static uint16_t charset_epson_basic[256];
 
         /* Dot spacing on X axis depending on character width (pical, elite, compressed,...) */
-        static unsigned char spacing_x[7][13];
+        static uint8_t spacing_x[7][13];
 
         /* Dot spacing on Y axis depending on character style (normal, superscript, subscript) */
-        static unsigned char spacing_y[6][17];
+        static uint8_t spacing_y[6][17];
 
         /* PNG file basename */
         char outfile[32];
         LodePNGState lodepng_state;
 
         /* Horizontal tabulation stops */
-        unsigned short htab[MPS_PRINTER_MAX_HTABULATIONS];
+        uint16_t htab[MPS_PRINTER_MAX_HTABULATIONS];
 
         /* Page bitmap */
-        unsigned char bitmap[MPS_PRINTER_BITMAP_SIZE];
+        uint8_t bitmap[MPS_PRINTER_BITMAP_SIZE];
 
         // How many pages printed since start
         int page_num;
 
         /* =======  Print head configuration */
         /* Ink density */
-        unsigned char dot_size;
+        uint8_t dot_size;
 
         /* Printer head position */
-        unsigned short head_x;
-        unsigned short head_y;
+        uint16_t head_x;
+        uint16_t head_y;
 
         /* Current interline value */
-        unsigned short interline;
+        uint16_t interline;
 
         /* =======  Current print attributes */
         bool reverse;           /* Negative characters */
@@ -118,26 +119,29 @@ class MpsPrinter
         bool italic;            /* Italic is on */
 
         /* =======  Current CBM charset (Uppercases/graphics or Lowercases/Uppercases) */
-        unsigned char cbm_charset;
+        uint8_t cbm_charset;
 
         /* =======  Interpreter state */
         mps_printer_state_t state;
 
         /* Current CMB command waiting for a parameter */
-        unsigned char cbm_command;
-        unsigned char cbm_param_count;
+        uint8_t cbm_command;
+        uint8_t cbm_param_count;
 
         /* Current ESC command waiting for a parameter */
-        unsigned char esc_command;
-        unsigned char esc_param_count;
+        uint8_t esc_command;
+        uint8_t esc_param_count;
+
+        /* Build zone to compute parameter on multibyte instruction */
+        uint32_t param_build;
 
         /* =======  1541 Ultimate FileManager */
 #ifndef NOT_ULTIMATE
         FileManager *fm;
 #endif
         /* =======  Current spacing configuration */
-        unsigned char step;     /* X spacing */
-        unsigned char script;   /* Y spacing */
+        uint8_t step;     /* X spacing */
+        uint8_t script;   /* Y spacing */
 
 
         /*==============================================*/
@@ -159,28 +163,28 @@ class MpsPrinter
 
         /* =======  Object customization */
         void setFilename(char * filename);
-        void setCBMCharset(char cs);
-        void setDotSize(char ds);
+        void setCBMCharset(uint8_t cs);
+        void setDotSize(uint8_t ds);
 
         /* =======  Feed interpreter */
-        void Interpreter(const unsigned char * input, unsigned long size);
-        void Interpreter(unsigned char input);
+        void Interpreter(const uint8_t * input, uint32_t size);
+        void Interpreter(uint8_t input);
 
     private:
-        int Combine(int c1, int c2);
+        uint8_t Combine(uint8_t c1, uint8_t c2);
         void Clear(void);
         void Print(const char* filename);
-        void Ink(int x, int y, int c=3);
-        void Dot(int x, int y);
-        unsigned short Charset2Chargen(unsigned char input);
-        int Char(unsigned short c);
-        int CharItalic(unsigned short c, int x, int y);
-        int CharDraft(unsigned short c, int x, int y);
-        int CharNLQ(unsigned short c, int x, int y);
-        void PrintString(const char *s, int x, int y);
-        void PrintStringNlq(const char *s, int x, int y);
-        bool IsPrintable(unsigned char input);
-        int Bim(unsigned char head);
+        void Ink(uint16_t x, uint16_t y, uint8_t c=3);
+        void Dot(uint16_t x, uint16_t y);
+        uint16_t Charset2Chargen(uint8_t input);
+        uint16_t Char(uint16_t c);
+        uint16_t CharItalic(uint16_t c, uint16_t x, uint16_t y);
+        uint16_t CharDraft(uint16_t c, uint16_t x, uint16_t y);
+        uint16_t CharNLQ(uint16_t c, uint16_t x, uint16_t y);
+        void PrintString(const char *s, uint16_t x, uint16_t y);
+        void PrintStringNlq(const char *s, uint16_t x, uint16_t y);
+        bool IsPrintable(uint8_t input);
+        uint16_t Bim(uint8_t head);
 };
 
 #endif /* _MPS_PRINTER_H_ */

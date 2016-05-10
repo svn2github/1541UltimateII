@@ -60,7 +60,7 @@ enum cbm_charset {
         -*/
 
 
-unsigned short MpsPrinter::charset_cbm_us[2][256] =
+uint16_t MpsPrinter::charset_cbm_us[2][256] =
 {
     {//  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
        500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500, // 0
@@ -109,7 +109,7 @@ unsigned short MpsPrinter::charset_cbm_us[2][256] =
          *
         -*/
 
-unsigned short MpsPrinter::charset_italic_cbm_us[2][256] =
+uint16_t MpsPrinter::charset_italic_cbm_us[2][256] =
 {
     {//  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
        500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500, // 0
@@ -151,7 +151,7 @@ unsigned short MpsPrinter::charset_italic_cbm_us[2][256] =
 
 /* -------  EPSON FX-80 default charset (called basic) */
 /*
-unsigned short MpsPrinter::charset_epson_basic[256] =
+uint16_t MpsPrinter::charset_epson_basic[256] =
 {//  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
    500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500, // 0
    500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500, // 1
