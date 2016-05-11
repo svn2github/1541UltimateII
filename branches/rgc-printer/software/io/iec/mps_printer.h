@@ -47,14 +47,15 @@
 
 #define MPS_PRINTER_BITMAP_SIZE             ((MPS_PRINTER_PAGE_WIDTH*MPS_PRINTER_PAGE_HEIGHT*MPS_PRINTER_PAGE_DEPTH+7)>>3)
 
+#define MPS_PRINTER_MAX_BIM_SUB             256
+
 /*********************************  Types  ******************************/
 
 typedef enum mps_printer_states {
     MPS_PRINTER_STATE_NORMAL,
     MPS_PRINTER_STATE_PARAM,
     MPS_PRINTER_STATE_ESC,
-    MPS_PRINTER_STATE_ESC_PARAM,
-    MPS_PRINTER_STATE_BIM
+    MPS_PRINTER_STATE_ESC_PARAM
 } mps_printer_state_t;
 
 /*======================================================================*/
@@ -82,6 +83,9 @@ class MpsPrinter
         /* Dot spacing on Y axis depending on character style (normal, superscript, subscript) */
         static uint8_t spacing_y[6][17];
 
+        /* CBM character specia for quote mode */
+        static uint8_t cbm_special[30];
+
         /* PNG file basename */
         char outfile[32];
         LodePNGState lodepng_state;
@@ -105,13 +109,13 @@ class MpsPrinter
 
         /* Current interline value */
         uint16_t interline;
+        uint16_t next_interline;
 
         /* =======  Current print attributes */
         bool reverse;           /* Negative characters */
         bool double_width;      /* Double width characters */
         bool nlq;               /* Near Letter Quality */
         bool clean;             /* Page is blank */
-        bool bim_only;          /* Line only contains Bitmap Image */
         bool quoted;            /* Commodore quoted listing */
         bool double_strike;     /* Print twice at the same place */
         bool underline;         /* Underline is on */
@@ -123,17 +127,16 @@ class MpsPrinter
 
         /* =======  Interpreter state */
         mps_printer_state_t state;
+        uint8_t param_count;
+        uint32_t param_build;
+        uint8_t bim_sub[MPS_PRINTER_MAX_BIM_SUB];
+        uint16_t bim_count;
 
         /* Current CMB command waiting for a parameter */
         uint8_t cbm_command;
-        uint8_t cbm_param_count;
 
         /* Current ESC command waiting for a parameter */
         uint8_t esc_command;
-        uint8_t esc_param_count;
-
-        /* Build zone to compute parameter on multibyte instruction */
-        uint32_t param_build;
 
         /* =======  1541 Ultimate FileManager */
 #ifndef NOT_ULTIMATE
@@ -184,6 +187,7 @@ class MpsPrinter
         void PrintString(const char *s, uint16_t x, uint16_t y);
         void PrintStringNlq(const char *s, uint16_t x, uint16_t y);
         bool IsPrintable(uint8_t input);
+        bool IsSpecial(uint8_t input);
         uint16_t Bim(uint8_t head);
 };
 

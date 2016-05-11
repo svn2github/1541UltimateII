@@ -48,6 +48,10 @@ uint8_t MpsPrinter::spacing_x[7][13] =
     {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8 },    // Micro Compressed  8px/char
 };
 
+#define SCRIPT_NORMAL   0
+#define SCRIPT_SUPER    2
+#define SCRIPT_SUB      4
+
 uint8_t MpsPrinter::spacing_y[6][17] =
 {
     {  0, 3, 6, 9,12,15,18,21,24,27,30,33,36,39,42,45,48 },    // Normal Draft & NLQ High
@@ -56,6 +60,14 @@ uint8_t MpsPrinter::spacing_y[6][17] =
     {  1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17 },    // Superscript NLQ Low
     { 19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35 },    // Subscript Draft & NLQ High
     { 20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36 },    // Subscript NLQ Low
+};
+
+#define MAX_SPECIAL 30
+uint8_t MpsPrinter::cbm_special[MAX_SPECIAL] =
+{
+      8,  9, 14, 17, 18, 19, 20, 28, 29, 30,
+     31,129,141,142,144,145,146,147,148,149,
+    150,151,152,153,154,155,156,157,158,159
 };
 
 /************************************************************************
@@ -94,7 +106,7 @@ MpsPrinter::MpsPrinter(char * filename)
     /* =======  Default printer attributes */
     dot_size      = 1;
     step          = 0;
-    script        = 0;
+    script        = SCRIPT_NORMAL;
     interline     = 36;
     page_num      = 1;
     cbm_charset   = 0;
@@ -292,11 +304,11 @@ void
 MpsPrinter::Clear(void)
 {
     bzero (bitmap,MPS_PRINTER_BITMAP_SIZE);
-    head_x   = 0;
-    head_y   = 0;
-    bim_only = false;
-    clean    = true;
-    quoted   = false;
+    head_x         = 0;
+    head_y         = 0;
+    next_interline = interline;
+    clean          = true;
+    quoted         = false;
 }
 
 /************************************************************************
@@ -943,16 +955,13 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
 uint16_t
 MpsPrinter::Bim(uint8_t head)
 {
-    /* This is to help to compute the interline spacing but too simplistic */
-    bim_only = true;    // ERROR to correct, not true if chars already printed
-
     /* -------  Each dot to print (LSB is up) */
     for (int j=0; j<8; j++)
     {
         /* Need to print a dot ?*/
         if (head & 0x01)
         {
-            Dot(head_x, head_y+spacing_y[script][j]);
+            Dot(head_x, head_y+spacing_y[SCRIPT_NORMAL][j]);
         }
 
         head >>= 1;
@@ -1014,6 +1023,32 @@ MpsPrinter::IsPrintable(uint8_t input)
 }
 
 /************************************************************************
+*                       MpsPrinter::IsSpecial(c)                Private *
+*                       ~~~~~~~~~~~~~~~~~~~~~~~~                        *
+* Function : Tell if an char code is special or not                     *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    c : (uint8_t) Byte code to test                                    *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    (bool) true if special                                             *
+*                                                                       *
+************************************************************************/
+
+bool
+MpsPrinter::IsSpecial(uint8_t input)
+{
+    for (int i=0; i< MAX_SPECIAL; i++)
+        if (input == cbm_special[i])
+            return true;
+
+    return false;
+}
+
+/************************************************************************
 *                       MpsPrinter::Charset2Chargen(c)          Private *
 *                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                  *
 * Function : Give the chargen code of a charset character               *
@@ -1065,9 +1100,6 @@ MpsPrinter::Charset2Chargen(uint8_t input)
 uint16_t
 MpsPrinter::Char(uint16_t c)
 {
-    /* So we are not printing only BIM data (to be resolved better) */
-    bim_only = false;
-
     /* 1000 is italic offset */
     if (c >= 1000)
     {
@@ -1114,30 +1146,38 @@ MpsPrinter::Interpreter(uint8_t input)
             /* =======  Special Commodore special quotted chars */
             if (quoted)
             {
-                if (!IsPrintable(input) && input != 0x0D)
+                if (!IsPrintable(input))
                 {
-                    bool saved_reverse = reverse;
-                    reverse = true;
-
-                    head_x += Char(Charset2Chargen(input | 0x40));
-                    if (head_x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH)
+                    if (IsSpecial(input))
                     {
-                        head_y += interline;
-                        head_x  = 0;
-                    }
+                        bool saved_reverse = reverse;
+                        reverse = true;
 
-                    reverse = saved_reverse;
-                    return;
+                        head_x += Char(Charset2Chargen(input | 0x40));
+                        if (head_x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH)
+                        {
+                            head_y += interline;
+                            head_x  = 0;
+                        }
+
+                        reverse = saved_reverse;
+                        return;
+                    }
+                    else
+                    {
+                        quoted = false;
+                    }
                 }
             }
 
             /* =======  Select action if command char received */
             cbm_command = input;
-            cbm_param_count = 0;
+            param_count = 0;
             switch(input)
             {
                 case 0x08:   // BIT IMG: bitmap image
-                    state = MPS_PRINTER_STATE_BIM;
+                    next_interline = spacing_y[SCRIPT_NORMAL][7];
+                    state = MPS_PRINTER_STATE_PARAM;
                     break;
 
                 case 0x09:   // TAB: horizontal tabulation
@@ -1166,15 +1206,7 @@ MpsPrinter::Interpreter(uint8_t input)
 
                 case 0x0A:   // LF: line feed (LF+CR)
                 case 0x0D:   // CR: carriage return (CR+LF)
-                    if (bim_only)
-                    {
-                        bim_only = false;
-                        head_y += spacing_y[script][7];
-                    }
-                    else
-                    {
-                        head_y += interline;
-                    }
+                    head_y += next_interline;
                     head_x  = 0;
                     quoted = false;
                     if (head_y > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT)
@@ -1232,6 +1264,8 @@ MpsPrinter::Interpreter(uint8_t input)
                 default:    // maybe a printable character
                     if (IsPrintable(input))
                     {
+                        next_interline = interline;
+
                         if (input == 0x22)
                         quoted = quoted ? false : true;
 
@@ -1249,7 +1283,7 @@ MpsPrinter::Interpreter(uint8_t input)
         // =======  Escape sequences
         case MPS_PRINTER_STATE_ESC:
             esc_command = input;
-            esc_param_count = 0;
+            param_count = 0;
             switch (input)
             {
                 case 0x10:  //ESC POS : Jump to horizontal position in number of dots
@@ -1281,8 +1315,7 @@ MpsPrinter::Interpreter(uint8_t input)
                     break;
 
                 case 0x3D:  // ESC = : Down Lile Loading of user characters
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    // ignored
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x43:  // ESC c : Set form length
@@ -1327,7 +1360,7 @@ MpsPrinter::Interpreter(uint8_t input)
 
                 case 0x54:  // ESC t : Clear superscript/subscript printing
                     state = MPS_PRINTER_STATE_NORMAL;
-                    script = 0;
+                    script = SCRIPT_NORMAL;
                     break;
 
                 case 0x78:  // ESC X : DRAFT/NLQ print mode selection
@@ -1346,12 +1379,12 @@ MpsPrinter::Interpreter(uint8_t input)
 
         // =======  Escape sequence parameters
         case MPS_PRINTER_STATE_ESC_PARAM:
-            esc_param_count++;
+            param_count++;
             switch(esc_command)
             {
                 case 0x10:  // ESC POS : Jump to horizontal position in number of dots
-                    if (esc_param_count == 1) param_build = input << 8;
-                    if (esc_param_count == 2)
+                    if (param_count == 1) param_build = input << 8;
+                    if (param_count == 2)
                     {
                         param_build |= input;
                         param_build <<= 2;
@@ -1363,6 +1396,13 @@ MpsPrinter::Interpreter(uint8_t input)
 
                         state = MPS_PRINTER_STATE_NORMAL;
                     }
+                    break;
+
+                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
+                    if (param_count == 1) param_build = input;
+                    if (param_count == 2) param_build |= input<<8;
+                    if ((param_count > 2) && (param_count == param_build+2))
+                        state = MPS_PRINTER_STATE_NORMAL;
                     break;
 
                 case 0x43:  // ESC c : Set form length
@@ -1403,7 +1443,7 @@ MpsPrinter::Interpreter(uint8_t input)
                     break;
 
                 case 0x53:  // ESC S : Superscript/subscript printing
-                    script = input & 0x01 ? 4 : 2;
+                    script = input & 0x01 ? SCRIPT_SUB : SCRIPT_SUPER;
                     state = MPS_PRINTER_STATE_NORMAL;
                     break;
 
@@ -1428,12 +1468,60 @@ MpsPrinter::Interpreter(uint8_t input)
 
         // =======  Escape sequence parameters
         case MPS_PRINTER_STATE_PARAM:
-            cbm_param_count++;
+            param_count++;
             switch(cbm_command)
             {
+                case 0x08:   // BIT IMG: bitmap image
+                    if (param_count == 1 && input == 26)
+                    {
+                        // use TAB code to handle BIT IMG SUB
+                        cbm_command = 0x09;
+                    }
+                    else
+                    {
+                        if (input & 0x80)
+                        {
+                            head_x += Bim(input & 0x7F);
+                        }
+                        else
+                        {
+                            // Was not graphic data, reinject to interpreter
+                            state = MPS_PRINTER_STATE_NORMAL;
+                            Interpreter(input);
+
+                        }
+                    }
+                    break;
+
+                case 0x09:   // BIT IMG SUB: bitmap image repeated
+                    if (param_count == 2)
+                    {
+                        // Get number of repeats
+                        param_build = (input==0) ? 256 : input;
+                        bim_count = 0;
+                    }
+                    else
+                    {
+                        if (input & 0x80 && bim_count < MPS_PRINTER_MAX_BIM_SUB)
+                        {
+                            bim_sub[bim_count++] = input & 0x7F;
+                        }
+                        else
+                        {
+                            // Was not graphic data, print bim and reinject to interpreter
+                            for (int i=0; i<param_build; i++)
+                                for (int j=0; j<bim_count; j++)
+                                    head_x += Bim(bim_sub[j]);
+
+                            state = MPS_PRINTER_STATE_NORMAL;
+                            Interpreter(input);
+                        }
+                    }
+                    break;
+
                 case 0x10:  // POS : Jump to horizontal position in number of chars
-                    if (cbm_param_count == 1) param_build = input & 0x0F;
-                    if (cbm_param_count == 2)
+                    if (param_count == 1) param_build = input & 0x0F;
+                    if (param_count == 2)
                     {
                         param_build = (param_build * 10) + (input & 0x0F);
                         if (param_build < 80 && (param_build * 24 ) > head_x)
@@ -1444,21 +1532,6 @@ MpsPrinter::Interpreter(uint8_t input)
                         state = MPS_PRINTER_STATE_NORMAL;
                     }
                     break;
-            }
-            break;
-
-        /* =======  Bitmap Graphic input */
-        case MPS_PRINTER_STATE_BIM:
-            if (input & 0x80)
-            {
-                head_x += Bim(input & 0x7F);
-            }
-            else
-            {
-                // Was not graphic data, reinject to interpreter
-                state = MPS_PRINTER_STATE_NORMAL;
-                Interpreter(input);
-
             }
             break;
 
