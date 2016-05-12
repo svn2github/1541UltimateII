@@ -270,8 +270,8 @@ void IecInterface :: effectuate_settings(void)
 int IecInterface :: fetch_task_items(Path *path, IndexedList<Action *> &list)
 {
     int count = 3;
-	list.append(new Action("Reset IEC",      SUBSYSID_IEC, MENU_IEC_RESET));
-	list.append(new Action("Flush printer spool", SUBSYSID_IEC, MENU_IEC_FLUSH));
+	list.append(new Action("Flush Printer/Eject Page", SUBSYSID_IEC, MENU_IEC_FLUSH));
+	list.append(new Action("Reset IEC and Printer",    SUBSYSID_IEC, MENU_IEC_RESET));
 	//list.append(new Action("UltiCopy 8",     SUBSYSID_IEC, MENU_IEC_WARP_8));
 	//list.append(new Action("UltiCopy 9",     SUBSYSID_IEC, MENU_IEC_WARP_9));
 	// list.append(new Action("IEC Test 1",     SUBSYSID_IEC, MENU_IEC_MASTER_1));
@@ -413,6 +413,7 @@ int IecInterface :: executeCommand(SubsysCommand *cmd)
 
 	switch(cmd->functionID) {
 		case MENU_IEC_RESET:
+                        channel_printer->reset();
 			HW_IEC_RESET_ENABLE = iec_enable;
 			break;
 		case MENU_IEC_FLUSH:

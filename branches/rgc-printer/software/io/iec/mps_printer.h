@@ -48,6 +48,11 @@
 #define MPS_PRINTER_BITMAP_SIZE             ((MPS_PRINTER_PAGE_WIDTH*MPS_PRINTER_PAGE_HEIGHT*MPS_PRINTER_PAGE_DEPTH+7)>>3)
 
 #define MPS_PRINTER_MAX_BIM_SUB             256
+#define MPS_PRINTER_MAX_SPECIAL             46
+
+#define MPS_PRINTER_SCRIPT_NORMAL           0
+#define MPS_PRINTER_SCRIPT_SUPER            2
+#define MPS_PRINTER_SCRIPT_SUB              4
 
 /*********************************  Types  ******************************/
 
@@ -84,7 +89,7 @@ class MpsPrinter
         static uint8_t spacing_y[6][17];
 
         /* CBM character specia for quote mode */
-        static uint8_t cbm_special[30];
+        static uint8_t cbm_special[MPS_PRINTER_MAX_SPECIAL];
 
         /* PNG file basename */
         char outfile[32];
@@ -172,6 +177,7 @@ class MpsPrinter
         /* =======  Feed interpreter */
         void Interpreter(const uint8_t * input, uint32_t size);
         void Interpreter(uint8_t input);
+        void Reset(void);
 
     private:
         uint8_t Combine(uint8_t c1, uint8_t c2);

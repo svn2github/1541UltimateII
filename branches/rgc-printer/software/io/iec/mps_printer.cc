@@ -37,6 +37,7 @@
 *                                                                       *
 ************************************************************************/
 
+/* =======  Pitch for letters */
 uint8_t MpsPrinter::spacing_x[7][13] =
 {
     {  0, 2, 4, 6, 8,10,12,14,16,18,20,22,24 },    // Pica              24px/char
@@ -48,10 +49,7 @@ uint8_t MpsPrinter::spacing_x[7][13] =
     {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8 },    // Micro Compressed  8px/char
 };
 
-#define SCRIPT_NORMAL   0
-#define SCRIPT_SUPER    2
-#define SCRIPT_SUB      4
-
+/* =======  Pitch for sub/super-script */
 uint8_t MpsPrinter::spacing_y[6][17] =
 {
     {  0, 3, 6, 9,12,15,18,21,24,27,30,33,36,39,42,45,48 },    // Normal Draft & NLQ High
@@ -62,12 +60,14 @@ uint8_t MpsPrinter::spacing_y[6][17] =
     { 20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36 },    // Subscript NLQ Low
 };
 
-#define MAX_SPECIAL 30
-uint8_t MpsPrinter::cbm_special[MAX_SPECIAL] =
+/* =======  Printable control chars in quotted mode */
+uint8_t MpsPrinter::cbm_special[MPS_PRINTER_MAX_SPECIAL] =
 {
-      8,  9, 14, 17, 18, 19, 20, 28, 29, 30,
-     31,129,141,142,144,145,146,147,148,149,
-    150,151,152,153,154,155,156,157,158,159
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
+    0x0b, 0x0c, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x15, 0x16,
+    0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x81,
+    0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+    0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f
 };
 
 /************************************************************************
@@ -96,28 +96,6 @@ MpsPrinter::MpsPrinter(char * filename)
     if (filename == NULL) filename = (char *) "mps";
 #endif
     strcpy(outfile,filename);
-
-    /* =======  Default H tabulations */
-    for (int i=0; i<32; i++)
-    {
-        htab[i] = 168+i*24*8;
-    }
-
-    /* =======  Default printer attributes */
-    dot_size      = 1;
-    step          = 0;
-    script        = SCRIPT_NORMAL;
-    interline     = 36;
-    page_num      = 1;
-    cbm_charset   = 0;
-    underline     = false;
-    double_width  = false;
-    bold          = false;
-    nlq           = false;
-    double_strike = false;
-
-    /* -------  Clear the bitmap (all white) */
-    Clear();
 
     /* Initialise PNG convertor attributes */
     lodepng_state_init(&lodepng_state);
@@ -156,6 +134,20 @@ MpsPrinter::MpsPrinter(char * filename)
 
     /* I rule, you don't */
     lodepng_state.encoder.auto_convert      = 0;
+
+        /*-
+         *
+         *  Page num start from 1 but should be
+         *  better to find the max existing number
+         *  in the filesystem because files are not
+         *  overwritten if they exist (this is a choice)
+         *
+        -*/
+
+    page_num = 1;
+
+    /* =======  Reset printer attributes */
+    Reset();
 }
 
 /************************************************************************
@@ -309,6 +301,47 @@ MpsPrinter::Clear(void)
     next_interline = interline;
     clean          = true;
     quoted         = false;
+}
+
+/************************************************************************
+*                       MpsPrinter::Reset()                 Public      *
+*                       ~~~~~~~~~~~~~~~~~~~                             *
+* Function : Set printer to initial state                               *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+************************************************************************/
+
+void
+MpsPrinter::Reset(void)
+{
+    /* =======  Default H tabulations */
+    for (int i=0; i<32; i++)
+    {
+        htab[i] = 168+i*24*8;
+    }
+
+    /* =======  Default printer attributes */
+    dot_size      = 1;
+    step          = 0;
+    script        = MPS_PRINTER_SCRIPT_NORMAL;
+    interline     = 36;
+    cbm_charset   = 0;
+    underline     = false;
+    double_width  = false;
+    bold          = false;
+    nlq           = false;
+    double_strike = false;
+
+    /* -------  Clear the bitmap (all white) */
+    Clear();
 }
 
 /************************************************************************
@@ -961,7 +994,7 @@ MpsPrinter::Bim(uint8_t head)
         /* Need to print a dot ?*/
         if (head & 0x01)
         {
-            Dot(head_x, head_y+spacing_y[SCRIPT_NORMAL][j]);
+            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
         }
 
         head >>= 1;
@@ -1041,7 +1074,7 @@ MpsPrinter::IsPrintable(uint8_t input)
 bool
 MpsPrinter::IsSpecial(uint8_t input)
 {
-    for (int i=0; i< MAX_SPECIAL; i++)
+    for (int i=0; i< MPS_PRINTER_MAX_SPECIAL; i++)
         if (input == cbm_special[i])
             return true;
 
@@ -1176,7 +1209,7 @@ MpsPrinter::Interpreter(uint8_t input)
             switch(input)
             {
                 case 0x08:   // BIT IMG: bitmap image
-                    next_interline = spacing_y[SCRIPT_NORMAL][7];
+                    next_interline = spacing_y[MPS_PRINTER_SCRIPT_NORMAL][7];
                     state = MPS_PRINTER_STATE_PARAM;
                     break;
 
@@ -1360,7 +1393,7 @@ MpsPrinter::Interpreter(uint8_t input)
 
                 case 0x54:  // ESC t : Clear superscript/subscript printing
                     state = MPS_PRINTER_STATE_NORMAL;
-                    script = SCRIPT_NORMAL;
+                    script = MPS_PRINTER_SCRIPT_NORMAL;
                     break;
 
                 case 0x78:  // ESC X : DRAFT/NLQ print mode selection
@@ -1443,7 +1476,7 @@ MpsPrinter::Interpreter(uint8_t input)
                     break;
 
                 case 0x53:  // ESC S : Superscript/subscript printing
-                    script = input & 0x01 ? SCRIPT_SUB : SCRIPT_SUPER;
+                    script = input & 0x01 ? MPS_PRINTER_SCRIPT_SUB : MPS_PRINTER_SCRIPT_SUPER;
                     state = MPS_PRINTER_STATE_NORMAL;
                     break;
 

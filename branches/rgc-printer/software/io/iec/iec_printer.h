@@ -109,6 +109,9 @@ public:
 
     virtual int flush(void)
     {
+        if (pointer && raw && !f)
+            open_file();
+
         close_file();
         return IEC_OK;
     }
@@ -116,6 +119,13 @@ public:
     virtual int init_done(void)
     {
         init = false;
+        return IEC_OK;
+    }
+
+    virtual int reset(void)
+    {
+        pointer = 0;
+        mps->Reset();
         return IEC_OK;
     }
 
