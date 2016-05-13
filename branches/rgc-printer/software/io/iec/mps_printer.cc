@@ -424,7 +424,7 @@ MpsPrinter::calcPageNum(void)
                              (inf->lfname[baselength+2] - '0') * 10 +
                              (inf->lfname[baselength+3] - '0');
 
-                if (number > page_num) page_num = number+1;
+                if (number >= page_num) page_num = number+1;
             }
         }
 
