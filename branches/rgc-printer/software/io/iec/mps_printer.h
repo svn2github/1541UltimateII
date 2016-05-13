@@ -146,6 +146,7 @@ class MpsPrinter
         /* =======  1541 Ultimate FileManager */
 #ifndef NOT_ULTIMATE
         FileManager *fm;
+        Path *path;
 #endif
         /* =======  Current spacing configuration */
         uint8_t step;     /* X spacing */
@@ -182,6 +183,9 @@ class MpsPrinter
     private:
         uint8_t Combine(uint8_t c1, uint8_t c2);
         void Clear(void);
+#ifndef NOT_ULTIMATE
+        void calcPageNum(void);
+#endif
         void Print(const char* filename);
         void Ink(uint16_t x, uint16_t y, uint8_t c=3);
         void Dot(uint16_t x, uint16_t y);
