@@ -138,10 +138,13 @@ MpsPrinter::MpsPrinter(char * filename)
 
         /*-
          *
-         *  Page num start from 1 but should be
-         *  better to find the max existing number
-         *  in the filesystem because files are not
-         *  overwritten if they exist (this is a choice)
+         *  Page num start from 1 but if a file
+         *  already exists on the filesystem the 
+         *  page number will be updated to be
+         *  greater than the existing one.
+         *
+         *  Hoping that user will delete or move
+         *  old printed files before reaching 999
          *
         -*/
 
@@ -169,6 +172,9 @@ MpsPrinter::MpsPrinter(char * filename)
 
 MpsPrinter::~MpsPrinter()
 {
+#ifndef NOT_ULTIMATE
+    fm->release_path(path);
+#endif
     lodepng_state_cleanup(&lodepng_state);
 }
 

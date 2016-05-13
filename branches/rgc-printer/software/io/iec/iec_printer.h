@@ -132,7 +132,7 @@ public:
     virtual int set_filename(const char *file)
     {
         filename = file;
-        if (!raw) mps->setFilename((char *)filename);
+        mps->setFilename((char *)filename);
     }
 
     virtual int set_ink_density(int d)
