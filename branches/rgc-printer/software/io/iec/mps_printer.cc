@@ -31,6 +31,17 @@
 #include "lodepng.h"
 #include "mps_printer.h"
 
+/* Uncomment to enable debug messages to serial port */
+//#define DEBUG
+
+#ifdef DEBUG
+#define DBGMSG(x) printf(__FILE__ " %d: " x "\n", __LINE__)
+#define DBGMSGV(x, ...) printf(__FILE__ " %d: " x "\n", __LINE__, __VA_ARGS__)
+#else
+#define DBGMSG(x)
+#define DBGMSGV(x, ...)
+#endif
+
 /************************************************************************
 *                                                                       *
 *               G L O B A L   M O D U L E   V A R I A B L E S           *
@@ -89,6 +100,7 @@ uint8_t MpsPrinter::cbm_special[MPS_PRINTER_MAX_SPECIAL] =
 
 MpsPrinter::MpsPrinter(char * filename)
 {
+    DBGMSG("creation");
 #ifndef NOT_ULTIMATE
     fm = FileManager :: getFileManager();
     path = fm->get_new_path("mps_printer");
@@ -139,7 +151,7 @@ MpsPrinter::MpsPrinter(char * filename)
         /*-
          *
          *  Page num start from 1 but if a file
-         *  already exists on the filesystem the 
+         *  already exists on the filesystem the
          *  page number will be updated to be
          *  greater than the existing one.
          *
@@ -176,6 +188,7 @@ MpsPrinter::~MpsPrinter()
     fm->release_path(path);
 #endif
     lodepng_state_cleanup(&lodepng_state);
+    DBGMSG("deletion");
 }
 
 /************************************************************************
@@ -222,6 +235,7 @@ MpsPrinter *MpsPrinter::getMpsPrinter()
 void
 MpsPrinter::setFilename(char * filename)
 {
+    DBGMSGV("filename changed to [%s]", filename);
     /* Store new filename */
     if (filename)
         strcpy(outfile,filename);
@@ -281,6 +295,7 @@ MpsPrinter::setDotSize(uint8_t ds)
 {
     if (ds >2) ds = 2;
     dot_size = ds;
+    DBGMSGV("dotsize changed to %d", ds);
 }
 
 /************************************************************************
@@ -329,6 +344,7 @@ MpsPrinter::Clear(void)
 void
 MpsPrinter::Reset(void)
 {
+    DBGMSG("printer reset requested");
     /* =======  Default H tabulations */
     for (int i=0; i<32; i++)
     {
@@ -378,6 +394,7 @@ MpsPrinter::calcPageNum(void)
 
     /* CHANGE THIS, it's ugly but it's fast */
 
+    DBGMSGV("calculate page_num. I think it's %d", page_num);
     strcpy(dirname, outfile);
     for (int i=0; dirname[i]; i++)
         if (dirname[i] == '/') last_slash = &dirname[i];
@@ -432,10 +449,13 @@ MpsPrinter::calcPageNum(void)
 
                 if (number >= page_num) page_num = number+1;
             }
+
+            delete inf; // FileInfo not needed anymore
         }
 
-        delete infos; // deletes the indexed list, but not the FileInfos
+        delete infos;   // deletes the indexed list, FileInfos already deleted
     }
+    DBGMSGV("calculate page_num. Finally it's %d", page_num);
 }
 
 #endif
@@ -470,6 +490,8 @@ MpsPrinter::FormFeed(void)
         page_num++;
 #ifdef NOT_ULTIMATE
         printf("printing to file %s\n", filename);
+#else
+        DBGMSGV("printing to file %s", filename);
 #endif
         Print(filename);
     }
@@ -499,8 +521,10 @@ MpsPrinter::Print(const char * filename)
     uint8_t *buffer;
     size_t outsize;
 
+    DBGMSG("start PNG encoder");
     buffer=NULL;
     unsigned error = lodepng_encode(&buffer, &outsize, bitmap, MPS_PRINTER_PAGE_WIDTH, MPS_PRINTER_PAGE_HEIGHT, &lodepng_state);
+    DBGMSG("ended PNG encoder, now saving");
 #ifndef NOT_ULTIMATE
     File *f;
     FRESULT fres = fm->fopen((const char *) filename, FA_WRITE|FA_CREATE_NEW, &f);
@@ -508,6 +532,11 @@ MpsPrinter::Print(const char * filename)
         uint32_t bytes;
         f->write(buffer, outsize, &bytes);
         fm->fclose(f);
+        DBGMSG("PNG saved");
+    }
+    else
+    {
+        DBGMSG("Saving PNG failed\n");
     }
 #else
     int fhd = open(filename, O_WRONLY|O_CREAT, 0666);
@@ -1123,6 +1152,7 @@ MpsPrinter::Bim(uint8_t head)
 void
 MpsPrinter::Interpreter(const uint8_t * input, uint32_t size)
 {
+    DBGMSGV("Interpreter called with %d bytes", size);
     /* =======  Call the other Interpreter method on each byte */
     while(size-- > 0)
     {
@@ -1504,7 +1534,7 @@ MpsPrinter::Interpreter(uint8_t input)
                     break;
 
                 default:
-                    printf("Oh, undefined printer escape sequence %d\n", input);
+                    DBGMSGV("undefined printer escape sequence %d", input);
             }
 
             break;
@@ -1668,7 +1698,7 @@ MpsPrinter::Interpreter(uint8_t input)
             break;
 
         default:
-            printf("Oh, undefined printer state %d\n", state);
+            DBGMSGV("undefined printer state %d", state);
     }
 }
 
