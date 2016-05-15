@@ -164,6 +164,10 @@ MpsPrinter::MpsPrinter(char * filename)
 
     /* =======  Reset printer attributes */
     Reset();
+
+#ifndef NOT_ULTIMATE
+    activity = 0;
+#endif
 }
 
 /************************************************************************
@@ -522,10 +526,15 @@ MpsPrinter::Print(const char * filename)
     size_t outsize;
 
     DBGMSG("start PNG encoder");
+#ifndef NOT_ULTIMATE
+    ActivityLedOn();
+#endif
     buffer=NULL;
     unsigned error = lodepng_encode(&buffer, &outsize, bitmap, MPS_PRINTER_PAGE_WIDTH, MPS_PRINTER_PAGE_HEIGHT, &lodepng_state);
     DBGMSG("ended PNG encoder, now saving");
 #ifndef NOT_ULTIMATE
+    ActivityLedOff();
+
     File *f;
     FRESULT fres = fm->fopen((const char *) filename, FA_WRITE|FA_CREATE_NEW, &f);
     if (f) {
@@ -1122,14 +1131,16 @@ MpsPrinter::Bim(uint8_t head)
         /* Need to print a dot ?*/
         if (head & 0x01)
         {
+            /* In MPS, BIM uses double width, dots are printed twice */
             Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
+            Dot(head_x+spacing_x[0][1], head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
         }
 
         head >>= 1;
     }
 
     /* Return spacing */
-    return spacing_x[step][2];
+    return spacing_x[0][2];
 }
 
 /************************************************************************
@@ -1153,12 +1164,18 @@ void
 MpsPrinter::Interpreter(const uint8_t * input, uint32_t size)
 {
     DBGMSGV("Interpreter called with %d bytes", size);
+#ifndef NOT_ULTIMATE
+    ActivityLedOn();
+#endif
     /* =======  Call the other Interpreter method on each byte */
     while(size-- > 0)
     {
         Interpreter(*input);
         input++;
     }
+#ifndef NOT_ULTIMATE
+    ActivityLedOff();
+#endif
 }
 
 /************************************************************************
@@ -1701,6 +1718,65 @@ MpsPrinter::Interpreter(uint8_t input)
             DBGMSGV("undefined printer state %d", state);
     }
 }
+
+/************************************************************************
+*                   MpsPrinter::ActivityLedOn(void)             Private *
+*                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                     *
+* Function : Turn on the activity LED to show that printer is working   *
+*            (calls can be nested)                                      *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+************************************************************************/
+
+#ifndef NOT_ULTIMATE
+void
+MpsPrinter::ActivityLedOn(void)
+{
+    if (activity == 0)
+        ioWrite8(ITU_USB_BUSY, 1);
+
+    activity++;
+}
+#endif
+
+/************************************************************************
+*                   MpsPrinter::ActivityLedOff(void)            Private *
+*                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                    *
+* Function : Turn off the activity LED to show that printer is not      *
+*            working anymore (calls can be nested)                      *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+************************************************************************/
+
+#ifndef NOT_ULTIMATE
+void
+MpsPrinter::ActivityLedOff(void)
+{
+    if (activity > 0)
+    {
+        activity--;
+
+        if (activity == 0)
+            ioWrite8(ITU_USB_BUSY, 0);
+    }
+}
+#endif
 
 /*
 void

@@ -29,6 +29,7 @@
 
 #ifndef NOT_ULTIMATE
 #include "filemanager.h"
+#include "task.h"
 #endif
 
 #include <stdint.h>
@@ -147,6 +148,7 @@ class MpsPrinter
 #ifndef NOT_ULTIMATE
         FileManager *fm;
         Path *path;
+        uint8_t activity;
 #endif
         /* =======  Current spacing configuration */
         uint8_t step;     /* X spacing */
@@ -199,6 +201,8 @@ class MpsPrinter
         bool IsPrintable(uint8_t input);
         bool IsSpecial(uint8_t input);
         uint16_t Bim(uint8_t head);
+        void ActivityLedOn(void);
+        void ActivityLedOff(void);
 };
 
 #endif /* _MPS_PRINTER_H_ */
