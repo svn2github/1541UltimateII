@@ -14,9 +14,9 @@ start
             
 # IRQ is at address 1
 ATN_IRQ
+            SET DATA=0 # not ready to receive
             SET CLK=1  # release clock
             WAIT FOR 20 us
-            SET DATA=0 # not ready to receive
             WAIT UNTIL CLK=0 
 
 # We are now able to release data, unless we are not ready to receive data
@@ -25,7 +25,7 @@ ATN_IRQ
             PUSHC
 
             WAIT UNTIL CLK=1
-            SUB RECEIVE_BYTE
+            SUB RECEIVE_ATN_CMD
             JUMP _no_push2
 _atn_loop
             WAIT UNTIL CLK=1
@@ -45,7 +45,7 @@ _no_push2
             WAIT UNTIL NOT ATN=0        # RGC ATN is not for us
             LOAD $42
             PUSHC
-            WAIT FOR 70 us
+            #WAIT FOR 70 us
             JUMP RELEASE
 _keep_data
             # at some time, the computer will either
@@ -53,6 +53,10 @@ _keep_data
             # 2) it wants to send another byte to us under attention
             # 3) it wants to send another byte without attention
             # In all cases, it will release the clock line
+            # ATN is for us, acknowledge
+            WAIT FOR 20 us
+            SET  DATA=0
+
 _check_after_atn_byte
             WAIT UNTIL NOT CLK=0,ATN=0
 
@@ -233,6 +237,55 @@ _recv0
 # Now acknowledge byte
             WAIT FOR 20 us
             SET  DATA=0
+            RET
+
+RECEIVE_ATN_CMD
+# initial state: DATA is low, CLK=1
+
+            SET DATA=1
+
+            WAIT UNTIL CLK=0 
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT0=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT1=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT2=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT3=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT4=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT5=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT6=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+                                     
+            WAIT UNTIL CLK=1 FOR Ts
+            IN   DATABIT7=DATA
+            IF TIMEOUT THEN _error
+            WAIT UNTIL CLK=0 FOR Tv
+            
+# Don't acknowledge, wait to know if it's for us
             RET
 
 PUSH_BYTE
