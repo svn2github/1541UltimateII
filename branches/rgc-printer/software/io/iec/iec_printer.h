@@ -50,7 +50,6 @@ public:
 
     virtual int push_data(uint8_t b)
     {
-
         buffer[pointer++] = b;
         if(pointer == IEC_PRINTER_BUFFERSIZE) {
             if (raw)

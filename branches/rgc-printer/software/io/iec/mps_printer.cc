@@ -160,7 +160,9 @@ MpsPrinter::MpsPrinter(char * filename)
          *
         -*/
 
+    /* =======  Default configuration */
     page_num = 1;
+    dot_size = 1;
 
     /* =======  Reset printer attributes */
     Reset();
@@ -356,7 +358,6 @@ MpsPrinter::Reset(void)
     }
 
     /* =======  Default printer attributes */
-    dot_size      = 1;
     step          = 0;
     script        = MPS_PRINTER_SCRIPT_NORMAL;
     interline     = 36;
