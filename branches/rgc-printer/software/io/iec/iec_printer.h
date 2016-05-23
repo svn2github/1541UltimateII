@@ -84,7 +84,7 @@ public:
                         mps->Interpreter(buffer,pointer);
                         pointer=0;
                     }
-                    mps->setCBMCharset(0);
+                    mps->setCharsetVariant(0);
                 }
                 break;
 
@@ -95,7 +95,7 @@ public:
                         mps->Interpreter(buffer,pointer);
                         pointer=0;
                     }
-                    mps->setCBMCharset(1);
+                    mps->setCharsetVariant(1);
                 }
                 break;
 
@@ -132,11 +132,63 @@ public:
     {
         filename = file;
         mps->setFilename((char *)filename);
+        return IEC_OK;
+    }
+
+    virtual int set_emulation(int d)
+    {
+        if (!raw && pointer) {
+            mps->Interpreter(buffer,pointer);
+            pointer=0;
+        }
+        switch (d)
+        {
+            case 0: mps->setInterpreter(MPS_PRINTER_INTERPRETER_CBM); break;
+            case 1: mps->setInterpreter(MPS_PRINTER_INTERPRETER_EPSONFX80); break;
+            case 2: mps->setInterpreter(MPS_PRINTER_INTERPRETER_IBMGP); break;
+            case 3: mps->setInterpreter(MPS_PRINTER_INTERPRETER_IBMPP); break;
+        }
+        return IEC_OK;
     }
 
     virtual int set_ink_density(int d)
     {
+        if (!raw && pointer) {
+            mps->Interpreter(buffer,pointer);
+            pointer=0;
+        }
         mps->setDotSize(d);
+        return IEC_OK;
+    }
+
+    virtual int set_cbm_charset(int d)
+    {
+        if (!raw && pointer) {
+            mps->Interpreter(buffer,pointer);
+            pointer=0;
+        }
+        mps->setCBMCharset(d);
+        return IEC_OK;
+    }
+
+    virtual int set_epson_charset(int d)
+    {
+        if (!raw && pointer) {
+            mps->Interpreter(buffer,pointer);
+            pointer=0;
+        }
+        mps->setEpsonCharset(d);
+        return IEC_OK;
+    }
+
+    virtual int set_ibm_charset(int d)
+    {
+        if (!raw && pointer) {
+            mps->Interpreter(buffer,pointer);
+            pointer=0;
+        }
+        mps->setIBMCharset(d);
+        return IEC_OK;
     }
 
     virtual int set_output_type(int t)

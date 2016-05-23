@@ -107,6 +107,10 @@ SRCS_CC	 =  small_printf.cc \
 			network_target.cc \
 			iec.cc \
 			mps_printer.cc \
+			mps_printer_cbm.cc \
+			mps_printer_epson.cc \
+			mps_printer_ibmgp.cc \
+			mps_printer_ibmpp.cc \
 			mps_chargen.cc \
 			mps_charset.cc \
 			lodepng.cc \

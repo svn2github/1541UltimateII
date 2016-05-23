@@ -41,10 +41,20 @@ extern uint32_t _ulticopy_65_size;
 #define CFG_IEC_PRINTER_FILENAME 0x31
 #define CFG_IEC_PRINTER_TYPE     0x32
 #define CFG_IEC_PRINTER_DENSITY  0x33
+#define CFG_IEC_PRINTER_EMULATION  0x34
+#define CFG_IEC_PRINTER_CBM_CHAR   0x35
+#define CFG_IEC_PRINTER_EPSON_CHAR 0x36
+#define CFG_IEC_PRINTER_IBM_CHAR   0x37
 
 static const char *en_dis[] = { "Disabled", "Enabled" };
 static const char *pr_typ[] = { "RAW", "PNG" };
 static const char *pr_ink[] = { "Low", "Medium", "High" };
+static const char *pr_emu[] = { "Commodore MPS", "Epson FX-80", "IBM Graphics Printer", "IBM Proprinter" };
+static const char *pr_cch[] = { "USA/UK", "Denmark", "France/Italy", "Germany", "Spain", "Sweden", "Switzerland" };
+static const char *pr_ech[] = { "Basic", "USA", "France", "Germany", "UK", "Denmark I",
+                                "Sweden", "Italy", "Spain", "Japan", "Norway", "Denmark II" };
+static const char *pr_ich[] = { "Standard", "International 1", "International 2", "Israel", "Greece", "Portugal", "Spain" };
+
 static struct t_cfg_definition iec_config[] = {
     { CFG_IEC_ENABLE,           CFG_TYPE_ENUM,   "IEC Drive and Printer","%s", en_dis, 0,  1, 0 },
     { CFG_IEC_BUS_ID,           CFG_TYPE_VALUE,  "1541 Drive Bus ID",    "%d", NULL,   8, 30, 10 },
@@ -52,6 +62,10 @@ static struct t_cfg_definition iec_config[] = {
     { CFG_IEC_PRINTER_FILENAME, CFG_TYPE_STRING, "Printer output file",  "%s", NULL,   1, 31, (int)"/SD/printer" },
     { CFG_IEC_PRINTER_TYPE,     CFG_TYPE_ENUM,   "Printer output type",  "%s", pr_typ, 0,  1, 1 },
     { CFG_IEC_PRINTER_DENSITY,  CFG_TYPE_ENUM,   "Printer ink density",  "%s", pr_ink, 0,  2, 1 },
+    { CFG_IEC_PRINTER_EMULATION,CFG_TYPE_ENUM,   "Printer emulation",    "%s", pr_emu, 0,  3, 0 },
+    { CFG_IEC_PRINTER_CBM_CHAR, CFG_TYPE_ENUM,   "Printer Commodore charset", "%s", pr_cch, 0,  6, 0 },
+    { CFG_IEC_PRINTER_EPSON_CHAR,CFG_TYPE_ENUM,  "Printer Epson charset","%s", pr_ech, 0,  11, 0 },
+    { CFG_IEC_PRINTER_IBM_CHAR, CFG_TYPE_ENUM,   "Printer IBM charset",  "%s", pr_ich, 0,  6, 0 },
     { 0xFF, CFG_TYPE_END,    "", "", NULL, 0, 0, 0 }
 };
 
@@ -261,6 +275,10 @@ void IecInterface :: effectuate_settings(void)
     channel_printer->set_filename(cfg->get_string(CFG_IEC_PRINTER_FILENAME));
     channel_printer->set_output_type(cfg->get_value(CFG_IEC_PRINTER_TYPE));
     channel_printer->set_ink_density(cfg->get_value(CFG_IEC_PRINTER_DENSITY));
+    channel_printer->set_emulation(cfg->get_value(CFG_IEC_PRINTER_EMULATION));
+    channel_printer->set_cbm_charset(cfg->get_value(CFG_IEC_PRINTER_CBM_CHAR));
+    channel_printer->set_epson_charset(cfg->get_value(CFG_IEC_PRINTER_EPSON_CHAR));
+    channel_printer->set_ibm_charset(cfg->get_value(CFG_IEC_PRINTER_IBM_CHAR));
 
     iec_enable = uint8_t(cfg->get_value(CFG_IEC_ENABLE));
     HW_IEC_RESET_ENABLE = iec_enable;

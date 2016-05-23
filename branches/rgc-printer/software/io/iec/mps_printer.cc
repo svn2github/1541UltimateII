@@ -28,19 +28,11 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef NOT_ULTIMATE
+#include <strings.h>
+#endif
 #include "lodepng.h"
 #include "mps_printer.h"
-
-/* Uncomment to enable debug messages to serial port */
-//#define DEBUG
-
-#ifdef DEBUG
-#define DBGMSG(x) printf(__FILE__ " %d: " x "\n", __LINE__)
-#define DBGMSGV(x, ...) printf(__FILE__ " %d: " x "\n", __LINE__, __VA_ARGS__)
-#else
-#define DBGMSG(x)
-#define DBGMSGV(x, ...)
-#endif
 
 /************************************************************************
 *                                                                       *
@@ -48,7 +40,7 @@
 *                                                                       *
 ************************************************************************/
 
-/* =======  Pitch for letters */
+/* =======  Horizontal pitch for letters */
 uint8_t MpsPrinter::spacing_x[7][13] =
 {
     {  0, 2, 4, 6, 8,10,12,14,16,18,20,22,24 },    // Pica              24px/char
@@ -60,25 +52,15 @@ uint8_t MpsPrinter::spacing_x[7][13] =
     {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8 },    // Micro Compressed  8px/char
 };
 
-/* =======  Pitch for sub/super-script */
+/* =======  Vertical pitch for sub/super-script */
 uint8_t MpsPrinter::spacing_y[6][17] =
 {
     {  0, 3, 6, 9,12,15,18,21,24,27,30,33,36,39,42,45,48 },    // Normal Draft & NLQ High
     {  2, 5, 8,11,14,17,20,23,26,28,32,35,38,41,44,47,50 },    // Normal NLQ Low
-    {  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16 },    // Superscript Draft & NLQ High
-    {  1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17 },    // Superscript NLQ Low
-    { 19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35 },    // Subscript Draft & NLQ High
-    { 20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36 },    // Subscript NLQ Low
-};
-
-/* =======  Printable control chars in quotted mode */
-uint8_t MpsPrinter::cbm_special[MPS_PRINTER_MAX_SPECIAL] =
-{
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
-    0x0b, 0x0c, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x15, 0x16,
-    0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x81,
-    0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
-    0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f
+    {  0, 2, 3, 4, 6, 7, 8,10,12,13,14,16,17,18,20,21,22 },    // Superscript Draft & NLQ High
+    {  1, 3, 4, 5, 7, 8, 9,11,13,14,15,17,18,19,21,22,23 },    // Superscript NLQ Low
+    { 10,12,13,14,16,17,18,20,22,23,24,26,27,28,30,31,32 },    // Subscript Draft & NLQ High
+    { 11,13,14,15,17,18,19,21,23,24,25,27,28,29,31,32,33 },    // Subscript NLQ Low
 };
 
 /************************************************************************
@@ -163,6 +145,8 @@ MpsPrinter::MpsPrinter(char * filename)
     /* =======  Default configuration */
     page_num = 1;
     dot_size = 1;
+    interpreter = MPS_PRINTER_INTERPRETER_CBM;
+    ibm_charset = epson_charset = cbm_charset = charset = 0;
 
     /* =======  Reset printer attributes */
     Reset();
@@ -251,33 +235,6 @@ MpsPrinter::setFilename(char * filename)
 }
 
 /************************************************************************
-*                       MpsPrinter::setCBMCharset(cs)           Public  *
-*                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                   *
-* Function : Change Commodore 64 charset                                *
-*-----------------------------------------------------------------------*
-* Inputs:                                                               *
-*                                                                       *
-*    cs : (uint8_t) New Commodore 64 Charset                            *
-*               0 - Uppercases/Graphics                                 *
-*               1 - Lowercases/Uppercases                               *
-*                                                                       *
-*-----------------------------------------------------------------------*
-* Outputs:                                                              *
-*                                                                       *
-*    none                                                               *
-*                                                                       *
-************************************************************************/
-
-void
-MpsPrinter::setCBMCharset(uint8_t cs)
-{
-    if (cs !=0 && cs != 1)
-        return;
-
-    cbm_charset = cs;
-}
-
-/************************************************************************
 *                       MpsPrinter::setDotSize(ds)              Public  *
 *                       ~~~~~~~~~~~~~~~~~~~~~~~~~~                      *
 * Function : Change ink dot size                                        *
@@ -305,6 +262,40 @@ MpsPrinter::setDotSize(uint8_t ds)
 }
 
 /************************************************************************
+*                       MpsPrinter::setInterpreter(in)          Public  *
+*                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                  *
+* Function : Change interpreter. Interpreter state is reset but head    *
+*            stays at the same place and page is not cleared            *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    in : (mps_printer_interpreter_t) New interpreter                   *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+************************************************************************/
+
+void
+MpsPrinter::setInterpreter(mps_printer_interpreter_t in)
+{
+    DBGMSGV("request to change interpreter to %d", in);
+
+    /* Check if a change of interpreter is requested */
+    if (in < MPS_PRINTER_INTERPRETERS && interpreter != in)
+    {
+        DBGMSGV("Changed interpreter to %d", in);
+        /* Change interpreter */
+        interpreter = in;
+
+        /* Default interpreter state */
+        Init();
+    }
+}
+
+/************************************************************************
 *                       MpsPrinter::Clear()               Private       *
 *                       ~~~~~~~~~~~~~~~~~~~                             *
 * Function : Clear page and set printer head on top left position       *
@@ -324,8 +315,8 @@ void
 MpsPrinter::Clear(void)
 {
     bzero (bitmap,MPS_PRINTER_BITMAP_SIZE);
-    head_x         = 0;
-    head_y         = 0;
+    head_x         = margin_left;
+    head_y         = margin_top;
     next_interline = interline;
     clean          = true;
     quoted         = false;
@@ -351,25 +342,86 @@ void
 MpsPrinter::Reset(void)
 {
     DBGMSG("printer reset requested");
-    /* =======  Default H tabulations */
-    for (int i=0; i<32; i++)
-    {
-        htab[i] = 168+i*24*8;
-    }
 
-    /* =======  Default printer attributes */
-    step          = 0;
-    script        = MPS_PRINTER_SCRIPT_NORMAL;
-    interline     = 36;
-    cbm_charset   = 0;
-    underline     = false;
-    double_width  = false;
-    bold          = false;
-    nlq           = false;
-    double_strike = false;
+    /* =======  Set default interpreter settings */
+    Init();
 
     /* -------  Clear the bitmap (all white) */
     Clear();
+}
+
+/************************************************************************
+*                       MpsPrinter::Init()                  Private     *
+*                       ~~~~~~~~~~~~~~~~~~                              *
+* Function : Set printer interpreter to default state but does not      *
+*            clear the page                                             *
+*-----------------------------------------------------------------------*
+* Inputs:                                                               *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+*-----------------------------------------------------------------------*
+* Outputs:                                                              *
+*                                                                       *
+*    none                                                               *
+*                                                                       *
+************************************************************************/
+
+void
+MpsPrinter::Init(void)
+{
+    DBGMSG("interpreter init requested");
+
+    /* =======  Default tabulation stops */
+    for (int i=0; i<MPS_PRINTER_MAX_HTABULATIONS; i++)
+        htab[i] = 168+i*24*8;
+
+    for (int j=0; j<MPS_PRINTER_MAX_VTABSTORES; j++)
+        for (int i=0; i<MPS_PRINTER_MAX_VTABULATIONS; i++)
+            vtab_store[j][i] = 0;
+
+    vtab = vtab_store[0];
+
+    /* =======  Default printer attributes */
+    step            = 0;
+    script          = MPS_PRINTER_SCRIPT_NORMAL;
+    interline       = 36;
+    charset_variant = 0;
+    bim_density     = 0;
+    italic          = false;
+    underline       = false;
+    double_width    = false;
+    bold            = false;
+    nlq             = false;
+    double_strike   = false;
+    state           = MPS_PRINTER_STATE_INITIAL;
+    margin_left     = 0;
+    margin_top      = 0;
+    margin_right    = MPS_PRINTER_PAGE_PRINTABLE_WIDTH;
+    margin_bottom   = MPS_PRINTER_PAGE_PRINTABLE_HEIGHT - MPS_PRINTER_HEAD_HEIGHT;
+    bim_K_density   = 0;    /* EPSON specific 60 dpi */
+    bim_L_density   = 1;    /* EPSON specific 120 dpi */
+    bim_Y_density   = 2;    /* EPSON specific 120 dpi high speed */
+    bim_Z_density   = 3;    /* EPSON specific 240 dpi */
+
+    /* =======  Default charsets (user defined) */
+
+    epson_charset_extended = false;
+
+    switch (interpreter)
+    {
+        case MPS_PRINTER_INTERPRETER_EPSONFX80:
+            charset = epson_charset;
+            break;
+
+        case MPS_PRINTER_INTERPRETER_IBMPP:
+        case MPS_PRINTER_INTERPRETER_IBMGP:
+            charset = ibm_charset;
+            break;
+
+        case MPS_PRINTER_INTERPRETER_CBM:
+            charset = cbm_charset;
+    }
 }
 
 /************************************************************************
@@ -671,8 +723,8 @@ void
 MpsPrinter::Ink(uint16_t x, uint16_t y, uint8_t c)
 {
     /* =======  Calculate true x and y position on page */
-    uint16_t tx=x+MPS_PRINTER_PAGE_MARGIN_LEFT;
-    uint16_t ty=y+MPS_PRINTER_PAGE_MARGIN_TOP;
+    uint16_t tx=x+MPS_PRINTER_PAGE_OFFSET_LEFT;
+    uint16_t ty=y+MPS_PRINTER_PAGE_OFFSET_TOP;
     uint8_t current;
 
     /* -------  Which byte address is it on raster buffer */
@@ -1106,45 +1158,6 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
 }
 
 /************************************************************************
-*                       MpsPrinter::Bim(c,x,y)                  Private *
-*                       ~~~~~~~~~~~~~~~~~~~~~~                          *
-* Function : Print a single bitmap image record                         *
-*-----------------------------------------------------------------------*
-* Inputs:                                                               *
-*                                                                       *
-*    c : (uint16_t) record to print                                     *
-*    x : (uint16_t) first pixel position from left of printable area    *
-*    y : (uint16_t) first pixel position from top of printable area     *
-*                                                                       *
-*-----------------------------------------------------------------------*
-* Outputs:                                                              *
-*                                                                       *
-*    (uint16_t) printed width (in pixels)                               *
-*                                                                       *
-************************************************************************/
-
-uint16_t
-MpsPrinter::Bim(uint8_t head)
-{
-    /* -------  Each dot to print (LSB is up) */
-    for (int j=0; j<8; j++)
-    {
-        /* Need to print a dot ?*/
-        if (head & 0x01)
-        {
-            /* In MPS, BIM uses double width, dots are printed twice */
-            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
-            Dot(head_x+spacing_x[0][1], head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
-        }
-
-        head >>= 1;
-    }
-
-    /* Return spacing */
-    return spacing_x[0][2];
-}
-
-/************************************************************************
 *               MpsPrinter::Interprepter(buffer, size)          Public  *
 *               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                  *
 * Function : Interpret a set of data as sent by the computer            *
@@ -1168,10 +1181,31 @@ MpsPrinter::Interpreter(const uint8_t * input, uint32_t size)
 #ifndef NOT_ULTIMATE
     ActivityLedOn();
 #endif
-    /* =======  Call the other Interpreter method on each byte */
+    /* =======  Call the right Interpreter method on each byte */
     while(size-- > 0)
     {
-        Interpreter(*input);
+        switch (interpreter)
+        {
+            case MPS_PRINTER_INTERPRETER_EPSONFX80:
+                Epson_Interpreter(*input);
+                break;
+
+            case MPS_PRINTER_INTERPRETER_IBMPP:
+                IBMpp_Interpreter(*input);
+                break;
+
+            case MPS_PRINTER_INTERPRETER_IBMGP:
+                IBMgp_Interpreter(*input);
+                break;
+
+            case MPS_PRINTER_INTERPRETER_CBM:
+                CBM_Interpreter(*input);
+                break;
+
+            default:
+                DBGMSGV("Unknown interpreter %d called", interpreter);
+        }
+
         input++;
     }
 #ifndef NOT_ULTIMATE
@@ -1198,34 +1232,31 @@ MpsPrinter::Interpreter(const uint8_t * input, uint32_t size)
 bool
 MpsPrinter::IsPrintable(uint8_t input)
 {
-    /* In charset Table non printables are coded 500 */
-    return (charset_cbm_us[cbm_charset][input] == 500) ? false : true;
-}
+    bool result = false;
 
-/************************************************************************
-*                       MpsPrinter::IsSpecial(c)                Private *
-*                       ~~~~~~~~~~~~~~~~~~~~~~~~                        *
-* Function : Tell if an char code is special or not                     *
-*-----------------------------------------------------------------------*
-* Inputs:                                                               *
-*                                                                       *
-*    c : (uint8_t) Byte code to test                                    *
-*                                                                       *
-*-----------------------------------------------------------------------*
-* Outputs:                                                              *
-*                                                                       *
-*    (bool) true if special                                             *
-*                                                                       *
-************************************************************************/
+    /* In charset Tables, non printables are coded 500 */
 
-bool
-MpsPrinter::IsSpecial(uint8_t input)
-{
-    for (int i=0; i< MPS_PRINTER_MAX_SPECIAL; i++)
-        if (input == cbm_special[i])
-            return true;
+    switch (interpreter)
+    {
+        case MPS_PRINTER_INTERPRETER_EPSONFX80:
+            if (epson_charset_extended)
+            {
+                result = (charset_epson_extended[input&0x7F] == 500) ? false : true;
+            }
+            if (!result) result = (charset_epson[charset][input&0x7F] == 500) ? false : true;
+            break;
 
-    return false;
+        case MPS_PRINTER_INTERPRETER_IBMPP:
+        case MPS_PRINTER_INTERPRETER_IBMGP:
+            result = (charset_ibm[charset][input] == 500) ? false : true;
+            break;
+
+        case MPS_PRINTER_INTERPRETER_CBM:
+        default:
+            result = (charset_cbm[charset][charset_variant][input] == 500) ? false : true;
+    }
+
+    return result;
 }
 
 /************************************************************************
@@ -1249,15 +1280,42 @@ MpsPrinter::IsSpecial(uint8_t input)
 uint16_t
 MpsPrinter::Charset2Chargen(uint8_t input)
 {
-    /* =======  Italic is enabled, get italic code if not 500 */
-    if (italic)
+    uint16_t chargen_id = 500;
+
+    /* =======  Read char entry in charset */
+    switch (interpreter)
     {
-        uint16_t charnum = charset_italic_cbm_us[cbm_charset][input];
-        if (charnum != 500) return 1000+charnum;
+        case MPS_PRINTER_INTERPRETER_EPSONFX80:
+            if (epson_charset_extended)
+            {
+                chargen_id = charset_epson_extended[input&0x7F];
+            }
+            /* Get chargen entry for this char in Epson charset */
+            if (chargen_id == 500) chargen_id = charset_epson[charset][input&0x7F];
+            break;
+
+        case MPS_PRINTER_INTERPRETER_IBMPP:
+        case MPS_PRINTER_INTERPRETER_IBMGP:
+            /* Get chargen entry for this char in IBM charset */
+            chargen_id = charset_ibm[charset][input];
+            break;
+
+        case MPS_PRINTER_INTERPRETER_CBM:
+        default:
+            /* Get chargen entry for this char in Commodore charset */
+            chargen_id = charset_cbm[charset][charset_variant][input];
     }
 
-    /* Otherwise of if italic code is 500 get normal chargen code (may be 500 too) */
-    return charset_cbm_us[cbm_charset][input];
+    /* =======  Italic is enabled, get italic code if not 500 */
+    /* In EPSON, ASCII codes from 128-255 are the same as 0-127 but with italic enabled */
+    if ((italic || (interpreter == MPS_PRINTER_INTERPRETER_EPSONFX80 && input & 0x80))
+        && convert_italic[chargen_id] != 500)
+    {
+        /* Add 1000 to result to tell the drawing routine that this is from italic chargen */
+        chargen_id = convert_italic[chargen_id] + 1000;
+    }
+
+    return chargen_id;
 }
 
 /************************************************************************
@@ -1298,425 +1356,6 @@ MpsPrinter::Char(uint16_t c)
             /* call NLQ print method */
             return CharDraft(c, head_x, head_y);
         }
-    }
-}
-
-/************************************************************************
-*                       MpsPrinter::Interprepter(data)          Public  *
-*                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                  *
-* Function : Interpret a single data as sent by the computer            *
-*-----------------------------------------------------------------------*
-* Inputs:                                                               *
-*                                                                       *
-*    data : (uint8_t *) Single data to interpret                        *
-*                                                                       *
-*-----------------------------------------------------------------------*
-* Outputs:                                                              *
-*                                                                       *
-*    none                                                               *
-*                                                                       *
-************************************************************************/
-
-void
-MpsPrinter::Interpreter(uint8_t input)
-{
-    switch(state)
-    {
-        case MPS_PRINTER_STATE_NORMAL:
-            /* =======  Special Commodore special quotted chars */
-            if (quoted)
-            {
-                if (!IsPrintable(input))
-                {
-                    if (IsSpecial(input))
-                    {
-                        bool saved_reverse = reverse;
-                        reverse = true;
-
-                        head_x += Char(Charset2Chargen(input | 0x40));
-                        if (head_x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH)
-                        {
-                            head_y += interline;
-                            head_x  = 0;
-                        }
-
-                        reverse = saved_reverse;
-                        return;
-                    }
-                    else
-                    {
-                        quoted = false;
-                    }
-                }
-            }
-
-            /* =======  Select action if command char received */
-            cbm_command = input;
-            param_count = 0;
-            switch(input)
-            {
-                case 0x08:   // BIT IMG: bitmap image
-                    next_interline = spacing_y[MPS_PRINTER_SCRIPT_NORMAL][7];
-                    state = MPS_PRINTER_STATE_PARAM;
-                    break;
-
-                case 0x09:   // TAB: horizontal tabulation
-                    {
-                        int i = 0;
-                        while (i < MPS_PRINTER_MAX_HTABULATIONS && htab[i] < MPS_PRINTER_PAGE_PRINTABLE_WIDTH)
-                        {
-                            if (htab[i] > head_x)
-                            {
-                                head_x = htab[i];
-                                break;
-                            }
-
-                            i++;
-                        }
-                    }
-                    break;
-
-                case 0x0B:   // VT: vertical tabulation
-                    // to be done
-                    break;
-
-                case 0x0C:   // FF: form feed
-                    FormFeed();
-                    break;
-
-                case 0x0A:   // LF: line feed (LF+CR)
-                case 0x0D:   // CR: carriage return (CR+LF)
-                    head_y += next_interline;
-                    head_x  = 0;
-                    quoted = false;
-                    if (head_y > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT)
-                        FormFeed();
-                    break;
-
-                case 0x0E:   // EN ON: Double width printing on
-                    double_width = true;
-                    break;
-
-                case 0x0F:   // EN OFF: Double width printing off
-                    double_width = false;
-                    break;
-
-                case 0x10:   // POS: Jump to horizontal position in number of chars
-                    state = MPS_PRINTER_STATE_PARAM;
-                    break;
-
-                case 0x11:   // CRSR DWN: Upper/lower case printing
-                    cbm_charset = 1;
-                    break;
-
-                case 0x12:   // RVS ON: Reverse printing on
-                    reverse = true;
-                    break;
-
-                case 0x13:   // DC3: Paging off
-                    //reverse = true;
-                    break;
-
-                case 0x1B:   // ESC: ASCII code for escape
-                    state = MPS_PRINTER_STATE_ESC;
-                    break;
-
-                case 0x1F:   // NLQ ON: Near letter quality on
-                    nlq = true;
-                    break;
-
-                case 0x8D:   // CS: Cariage return with no line feed
-                    head_x  = 0;
-                    break;
-
-                case 0x91:   // CRSR UP: Upper case printing
-                    cbm_charset = 0;
-                    break;
-
-                case 0x92:   // RVS OFF: Reverse printing off
-                    reverse = false;
-                    break;
-
-                case 0x9F:   // NLQ OFF: Near letter quality off
-                    nlq = false;
-                    break;
-
-                default:    // maybe a printable character
-                    if (IsPrintable(input))
-                    {
-                        next_interline = interline;
-
-                        if (input == 0x22)
-                        quoted = quoted ? false : true;
-
-                        head_x += Char(Charset2Chargen(input));
-                        if (head_x > MPS_PRINTER_PAGE_PRINTABLE_WIDTH)
-                        {
-                            head_y += interline;
-                            head_x  = 0;
-                        }
-                    }
-                    break;
-            }
-            break;
-
-        // =======  Escape sequences
-        case MPS_PRINTER_STATE_ESC:
-            esc_command = input;
-            param_count = 0;
-            switch (input)
-            {
-                case 0x10:  //ESC POS : Jump to horizontal position in number of dots
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x2D:  // ESC - : Underline on/off
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x34:  // ESC 4 : Italic ON
-                    italic = true;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x35:  // ESC 5 : Italic OFF
-                    italic = false;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x38:  // ESC 8 : Out of paper detection disabled
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    // ignored
-                    break;
-
-                case 0x39:  // ESC 9 : Out of paper detection enabled
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    // ignored
-                    break;
-
-                case 0x3D:  // ESC = : Down Lile Loading of user characters
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x43:  // ESC c : Set form length
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x45:  // ESC e : Emphasized printing ON
-                    bold = true;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x46:  // ESC f : Emphasized printing OFF
-                    bold = false;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x47:  // ESC g : Double strike printing ON
-                    double_strike = true;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x48:  // ESC h : Double strike printing OFF
-                    double_strike = false;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x49:  // ESC i : Select print definition
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x4E:  // ESC n : Defines bottom of from (BOF)
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x4F:  // ESC o : Clear bottom of from (BOF)
-                    // Ignored in this version, usefull only for continuous paper feed
-                    break;
-
-                case 0x53:  // ESC s : Superscript/subscript printing
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x54:  // ESC t : Clear superscript/subscript printing
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    script = MPS_PRINTER_SCRIPT_NORMAL;
-                    break;
-
-                case 0x78:  // ESC X : DRAFT/NLQ print mode selection
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x5B:  // ESC [ : Print style selection
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                default:
-                    DBGMSGV("undefined printer escape sequence %d", input);
-            }
-
-            break;
-
-        // =======  Escape sequence parameters
-        case MPS_PRINTER_STATE_ESC_PARAM:
-            param_count++;
-            switch(esc_command)
-            {
-                case 0x10:  // ESC POS : Jump to horizontal position in number of dots
-                    if (param_count == 1) param_build = input << 8;
-                    if (param_count == 2)
-                    {
-                        param_build |= input;
-                        param_build <<= 2;
-
-                        if ((param_build < MPS_PRINTER_PAGE_PRINTABLE_WIDTH) && param_build > head_x)
-                        {
-                            head_x = param_build;
-                        }
-
-                        state = MPS_PRINTER_STATE_NORMAL;
-                    }
-                    break;
-
-                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
-                    if (param_count == 1) param_build = input;
-                    if (param_count == 2) param_build |= input<<8;
-                    if ((param_count > 2) && (param_count == param_build+2))
-                        state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x43:  // ESC c : Set form length
-                    // Ignored in this version
-                    if (input != 0)
-                        state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x49:  // ESC i : Select print definition
-                    switch (input)
-                    {
-                        case 0x00:  // Draft
-                        case 0x30:
-                            nlq = false;
-                            break;
-
-                        case 0x02:  // NLQ
-                        case 0x32:
-                            nlq = true;
-
-                            break;
-                        case 0x04:  // Draft + DLL enabled (not implemented)
-                        case 0x34:
-                            nlq = false;
-                            break;
-
-                        case 0x06:  // NLQ + DLL enabled (not implemented)
-                        case 0x36:
-                            nlq = true;
-                            break;
-                    }
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x4E:  // ESC n : Defines bottom of from (BOF)
-                    // Ignored in this version, usefull only for continuous paper feed
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x53:  // ESC S : Superscript/subscript printing
-                    script = input & 0x01 ? MPS_PRINTER_SCRIPT_SUB : MPS_PRINTER_SCRIPT_SUPER;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x2D:  // ESC - : Underline on/off
-                    underline = input & 0x01 ? true : false;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x58:  // ESC x : DRAFT/NLQ print mode selection
-                    nlq = input & 0x01 ? true : false;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-
-                case 0x5B:  // ESC [ : Print style selection (pica, elite, ...)
-                    uint8_t new_step = input & 0x0F;
-                    if (new_step < 7)
-                        step = new_step;
-                    state = MPS_PRINTER_STATE_NORMAL;
-                    break;
-            }
-            break;
-
-        // =======  Escape sequence parameters
-        case MPS_PRINTER_STATE_PARAM:
-            param_count++;
-            switch(cbm_command)
-            {
-                case 0x08:   // BIT IMG: bitmap image
-                    if (param_count == 1 && input == 26)
-                    {
-                        // use TAB code to handle BIT IMG SUB
-                        cbm_command = 0x09;
-                    }
-                    else
-                    {
-                        if (input & 0x80)
-                        {
-                            head_x += Bim(input & 0x7F);
-                        }
-                        else
-                        {
-                            // Was not graphic data, reinject to interpreter
-                            state = MPS_PRINTER_STATE_NORMAL;
-                            Interpreter(input);
-
-                        }
-                    }
-                    break;
-
-                case 0x09:   // BIT IMG SUB: bitmap image repeated
-                    if (param_count == 2)
-                    {
-                        // Get number of repeats
-                        param_build = (input==0) ? 256 : input;
-                        bim_count = 0;
-                    }
-                    else
-                    {
-                        if (input & 0x80 && bim_count < MPS_PRINTER_MAX_BIM_SUB)
-                        {
-                            bim_sub[bim_count++] = input & 0x7F;
-                        }
-                        else
-                        {
-                            // Was not graphic data, print bim and reinject to interpreter
-                            for (int i=0; i<param_build; i++)
-                                for (int j=0; j<bim_count; j++)
-                                    head_x += Bim(bim_sub[j]);
-
-                            state = MPS_PRINTER_STATE_NORMAL;
-                            Interpreter(input);
-                        }
-                    }
-                    break;
-
-                case 0x10:  // POS : Jump to horizontal position in number of chars
-                    if (param_count == 1) param_build = input & 0x0F;
-                    if (param_count == 2)
-                    {
-                        param_build = (param_build * 10) + (input & 0x0F);
-                        if (param_build < 80 && (param_build * 24 ) > head_x)
-                        {
-                            head_x = 24 * param_build;
-                        }
-
-                        state = MPS_PRINTER_STATE_NORMAL;
-                    }
-                    break;
-            }
-            break;
-
-        default:
-            DBGMSGV("undefined printer state %d", state);
     }
 }
 
@@ -1787,7 +1426,7 @@ MpsPrinter::PrintString(const char *s, uint16_t x, uint16_t y)
 
     while (*c)
     {
-        MpsPrinter::CharDraft(charset_epson_basic[*c], x, y);
+        MpsPrinter::CharDraft(charset_epson[0][*c], x, y);
         x+=spacing_x[step][12];
         c++;
     }
@@ -1800,7 +1439,7 @@ MpsPrinter::PrintStringNlq(const char *s, uint16_t x, uint16_t y)
 
     while (*c)
     {
-        MpsPrinter::CharNLQ(charset_epson_basic[*c], x, y);
+        MpsPrinter::CharNLQ(charset_epson[0][*c], x, y);
         x+=spacing_x[step][12];
         c++;
     }

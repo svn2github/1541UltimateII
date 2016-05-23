@@ -40,11 +40,15 @@
 #define MPS_PRINTER_PAGE_WIDTH              1984
 #define MPS_PRINTER_PAGE_HEIGHT             2580
 #define MPS_PRINTER_PAGE_DEPTH              2
-#define MPS_PRINTER_PAGE_MARGIN_LEFT        32
-#define MPS_PRINTER_PAGE_MARGIN_TOP         32
+#define MPS_PRINTER_PAGE_OFFSET_LEFT        32
+#define MPS_PRINTER_PAGE_OFFSET_TOP         32
 #define MPS_PRINTER_PAGE_PRINTABLE_WIDTH    1920
 #define MPS_PRINTER_PAGE_PRINTABLE_HEIGHT   2516
+#define MPS_PRINTER_HEAD_HEIGHT             27
+
 #define MPS_PRINTER_MAX_HTABULATIONS        32
+#define MPS_PRINTER_MAX_VTABULATIONS        32
+#define MPS_PRINTER_MAX_VTABSTORES          8
 
 #define MPS_PRINTER_BITMAP_SIZE             ((MPS_PRINTER_PAGE_WIDTH*MPS_PRINTER_PAGE_HEIGHT*MPS_PRINTER_PAGE_DEPTH+7)>>3)
 
@@ -55,14 +59,47 @@
 #define MPS_PRINTER_SCRIPT_SUPER            2
 #define MPS_PRINTER_SCRIPT_SUB              4
 
+/******************************  Debug macros  **************************/
+
+/* Uncomment to enable debug messages to serial port */
+#define DEBUG
+
+#ifdef DEBUG
+#define DBGMSG(x) printf(__FILE__ " %d: " x "\n", __LINE__)
+#define DBGMSGV(x, ...) printf(__FILE__ " %d: " x "\n", __LINE__, __VA_ARGS__)
+#else
+#define DBGMSG(x)
+#define DBGMSGV(x, ...)
+#endif
+
 /*********************************  Types  ******************************/
 
 typedef enum mps_printer_states {
-    MPS_PRINTER_STATE_NORMAL,
+    MPS_PRINTER_STATE_INITIAL,
     MPS_PRINTER_STATE_PARAM,
     MPS_PRINTER_STATE_ESC,
-    MPS_PRINTER_STATE_ESC_PARAM
+    MPS_PRINTER_STATE_ESC_PARAM,
+    MPS_PRINTER_STATES
 } mps_printer_state_t;
+
+typedef enum mps_printer_interpreter {
+    MPS_PRINTER_INTERPRETER_CBM,
+    MPS_PRINTER_INTERPRETER_EPSONFX80,
+    MPS_PRINTER_INTERPRETER_IBMPP,
+    MPS_PRINTER_INTERPRETER_IBMGP,
+    MPS_PRINTER_INTERPRETERS
+} mps_printer_interpreter_t;
+
+typedef enum mps_printer_step {
+    MPS_PRINTER_STEP_PICA,
+    MPS_PRINTER_STEP_ELITE,
+    MPS_PRINTER_STEP_MICRO,
+    MPS_PRINTER_STEP_CONDENSED,
+    MPS_PRINTER_STEP_PICA_COMPRESSED,
+    MPS_PRINTER_STEP_ELITE_COMPRESSED,
+    MPS_PRINTER_STEP_MICRO_COMPRESSED,
+    MPS_PRINTER_STEPS
+} mps_printer_step_t;
 
 /*======================================================================*/
 /* Class MpsPrinter                                                     */
@@ -78,10 +115,14 @@ class MpsPrinter
         static uint8_t chargen_nlq_high[404][12];
         static uint8_t chargen_draft[404][12];
 
+        /* Italic chargen lookup table */
+        static uint16_t convert_italic[404];
+
         /* Charsets (CBM and other ASCII) */
-        static uint16_t charset_cbm_us[2][256];
-        static uint16_t charset_italic_cbm_us[2][256];
-        //static uint16_t charset_epson_basic[256];
+        static uint16_t charset_cbm[7][2][256];
+        static uint16_t charset_epson[12][128];
+        static uint16_t charset_ibm[7][256];
+        static uint16_t charset_epson_extended[128];
 
         /* Dot spacing on X axis depending on character width (pical, elite, compressed,...) */
         static uint8_t spacing_x[7][13];
@@ -92,18 +133,35 @@ class MpsPrinter
         /* CBM character specia for quote mode */
         static uint8_t cbm_special[MPS_PRINTER_MAX_SPECIAL];
 
+        /* =======  Configuration */
         /* PNG file basename */
         char outfile[32];
+
+        /* PNG palette */
         LodePNGState lodepng_state;
 
-        /* Horizontal tabulation stops */
+        /* tabulation stops */
         uint16_t htab[MPS_PRINTER_MAX_HTABULATIONS];
+        uint16_t vtab_store[MPS_PRINTER_MAX_VTABSTORES][MPS_PRINTER_MAX_VTABULATIONS];
+        uint16_t *vtab;
 
         /* Page bitmap */
         uint8_t bitmap[MPS_PRINTER_BITMAP_SIZE];
 
-        // How many pages printed since start
+        /* How many pages printed since start */
         int page_num;
+
+        /* Current interpreter to use */
+        mps_printer_interpreter_t interpreter;
+
+        /* Current international charset */
+        uint8_t charset;
+
+        /* Saved international charsets */
+        uint8_t cbm_charset;
+        uint8_t epson_charset;
+        uint8_t ibm_charset;
+        bool epson_charset_extended;
 
         /* =======  Print head configuration */
         /* Ink density */
@@ -117,6 +175,20 @@ class MpsPrinter
         uint16_t interline;
         uint16_t next_interline;
 
+        /* Margins */
+        uint16_t margin_right;
+        uint16_t margin_left;
+        uint16_t margin_top;
+        uint16_t margin_bottom;
+
+        /* BIM */
+        uint8_t bim_density;
+        uint8_t bim_K_density;  /* EPSON specific */
+        uint8_t bim_L_density;  /* EPSON specific */
+        uint8_t bim_Y_density;  /* EPSON specific */
+        uint8_t bim_Z_density;  /* EPSON specific */
+        uint8_t bim_position;
+
         /* =======  Current print attributes */
         bool reverse;           /* Negative characters */
         bool double_width;      /* Double width characters */
@@ -128,8 +200,8 @@ class MpsPrinter
         bool bold;              /* Bold is on */
         bool italic;            /* Italic is on */
 
-        /* =======  Current CBM charset (Uppercases/graphics or Lowercases/Uppercases) */
-        uint8_t cbm_charset;
+        /* =======  Current CBM charset variant (Uppercases/graphics or Lowercases/Uppercases) */
+        uint8_t charset_variant;
 
         /* =======  Interpreter state */
         mps_printer_state_t state;
@@ -144,8 +216,8 @@ class MpsPrinter
         /* Current ESC command waiting for a parameter */
         uint8_t esc_command;
 
-        /* =======  1541 Ultimate FileManager */
 #ifndef NOT_ULTIMATE
+        /* =======  1541 Ultimate FileManager */
         FileManager *fm;
         Path *path;
         uint8_t activity;
@@ -174,17 +246,23 @@ class MpsPrinter
 
         /* =======  Object customization */
         void setFilename(char * filename);
-        void setCBMCharset(uint8_t cs);
+        void setCharsetVariant(uint8_t cs);
         void setDotSize(uint8_t ds);
+        void setInterpreter(mps_printer_interpreter_t it);
+        void setCBMCharset(uint8_t in);
+        void setEpsonCharset(uint8_t in);
+        void setIBMCharset(uint8_t in);
 
         /* =======  Feed interpreter */
         void Interpreter(const uint8_t * input, uint32_t size);
-        void Interpreter(uint8_t input);
+
+        /* =======  Reset printer */
         void Reset(void);
 
     private:
         uint8_t Combine(uint8_t c1, uint8_t c2);
         void Clear(void);
+        void Init(void);
 #ifndef NOT_ULTIMATE
         void calcPageNum(void);
 #endif
@@ -199,10 +277,25 @@ class MpsPrinter
         void PrintString(const char *s, uint16_t x, uint16_t y);
         void PrintStringNlq(const char *s, uint16_t x, uint16_t y);
         bool IsPrintable(uint8_t input);
-        bool IsSpecial(uint8_t input);
-        uint16_t Bim(uint8_t head);
         void ActivityLedOn(void);
         void ActivityLedOff(void);
+
+        /* CBM related interpreter */
+        void CBM_Interpreter(uint8_t input);
+        uint16_t CBMBim(uint8_t head);
+        bool IsCBMSpecial(uint8_t input);
+
+        /* Epson FX80 related interpreter */
+        void Epson_Interpreter(uint8_t input);
+        uint16_t EpsonBim(uint8_t head);
+        uint16_t EpsonBim9(uint8_t h,uint8_t l);
+
+        /* IBM Proprinter related interpreter */
+        void IBMpp_Interpreter(uint8_t input);
+        uint16_t IBMBim(uint8_t head);
+
+        /* IBM Gaphics Printer related interpreter */
+        void IBMgp_Interpreter(uint8_t input);
 };
 
 #endif /* _MPS_PRINTER_H_ */
