@@ -146,7 +146,8 @@ MpsPrinter::MpsPrinter(char * filename)
     page_num = 1;
     dot_size = 1;
     interpreter = MPS_PRINTER_INTERPRETER_CBM;
-    ibm_charset = epson_charset = cbm_charset = charset = 0;
+    epson_charset = cbm_charset = charset = 0;
+    ibm_charset = 1;
 
     /* =======  Reset printer attributes */
     Reset();
@@ -390,10 +391,12 @@ MpsPrinter::Init(void)
     bim_density     = 0;
     italic          = false;
     underline       = false;
+    overline        = false;
     double_width    = false;
     bold            = false;
     nlq             = false;
     double_strike   = false;
+    auto_lf         = false;
     state           = MPS_PRINTER_STATE_INITIAL;
     margin_left     = 0;
     margin_top      = 0;
@@ -416,7 +419,7 @@ MpsPrinter::Init(void)
 
         case MPS_PRINTER_INTERPRETER_IBMPP:
         case MPS_PRINTER_INTERPRETER_IBMGP:
-            charset = ibm_charset;
+            charset = 0;
             break;
 
         case MPS_PRINTER_INTERPRETER_CBM:

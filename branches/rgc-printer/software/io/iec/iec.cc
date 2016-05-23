@@ -53,7 +53,7 @@ static const char *pr_emu[] = { "Commodore MPS", "Epson FX-80", "IBM Graphics Pr
 static const char *pr_cch[] = { "USA/UK", "Denmark", "France/Italy", "Germany", "Spain", "Sweden", "Switzerland" };
 static const char *pr_ech[] = { "Basic", "USA", "France", "Germany", "UK", "Denmark I",
                                 "Sweden", "Italy", "Spain", "Japan", "Norway", "Denmark II" };
-static const char *pr_ich[] = { "Standard", "International 1", "International 2", "Israel", "Greece", "Portugal", "Spain" };
+static const char *pr_ich[] = { "International 1", "International 2", "Israel", "Greece", "Portugal", "Spain" };
 
 static struct t_cfg_definition iec_config[] = {
     { CFG_IEC_ENABLE,           CFG_TYPE_ENUM,   "IEC Drive and Printer","%s", en_dis, 0,  1, 0 },
@@ -65,7 +65,7 @@ static struct t_cfg_definition iec_config[] = {
     { CFG_IEC_PRINTER_EMULATION,CFG_TYPE_ENUM,   "Printer emulation",    "%s", pr_emu, 0,  3, 0 },
     { CFG_IEC_PRINTER_CBM_CHAR, CFG_TYPE_ENUM,   "Printer Commodore charset", "%s", pr_cch, 0,  6, 0 },
     { CFG_IEC_PRINTER_EPSON_CHAR,CFG_TYPE_ENUM,  "Printer Epson charset","%s", pr_ech, 0,  11, 0 },
-    { CFG_IEC_PRINTER_IBM_CHAR, CFG_TYPE_ENUM,   "Printer IBM charset",  "%s", pr_ich, 0,  6, 0 },
+    { CFG_IEC_PRINTER_IBM_CHAR, CFG_TYPE_ENUM,   "Printer IBM table 2",  "%s", pr_ich, 0,  5, 0 },
     { 0xFF, CFG_TYPE_END,    "", "", NULL, 0, 0, 0 }
 };
 
@@ -349,7 +349,7 @@ int IecInterface :: poll()
                     talking = true;
                     break;
                 case 0x45:
-                    printf("{end} ");
+                    //printf("{end} ");
                     if (printer) {
                         channel_printer->push_command(0xFF);
                         printer = false;
@@ -360,22 +360,22 @@ int IecInterface :: poll()
                 case 0x41:
                     atn = true;
                     talking = false;
-                    printf("<1>", data);
+                    //printf("<1>", data);
                     break;
                 case 0x42:
                     atn = false;
-                    printf("<0> ", data);
+                    //printf("<0> ", data);
                     break;
                 case 0x46:
                     printer = true;
                     channel_printer->push_command(0xFE);
                     break;
-                default:
-                    printf("<%b> ", data);
+                //default:
+                    //printf("<%b> ", data);
             }
         } else {
             if(atn) {
-                printf("[/%b] ", data);
+                //printf("[/%b] ", data);
                 if(data >= 0x60) {  // workaround for passing of wrong atn codes talk/untalk
                     if (printer) {
                         channel_printer->push_command(data & 0x7);
@@ -388,7 +388,7 @@ int IecInterface :: poll()
                 if (printer) {
                     channel_printer->push_data(data);
                 } else {
-                    printf("[%b] ", data);
+                    //printf("[%b] ", data);
                     channels[current_channel]->push_data(data);
                 }
             }

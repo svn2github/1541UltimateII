@@ -43,7 +43,7 @@
 /************************************************************************
 *                  MpsPrinter::IBMpp_Interpreter(data)         Private  *
 *                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                  *
-* Function : Epson FX-80 single data interpreter automata               *
+* Function : IBM Proprinter single data interpreter automata            *
 *-----------------------------------------------------------------------*
 * Inputs:                                                               *
 *                                                                       *
@@ -68,8 +68,8 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
             param_count = 0;
             switch(input)
             {
-                case 0x07:   // Bell
-                    // ignore
+                case 0x07:   // BELL
+                    // No bell here in Ultimate, just ignore
                     break;
 
                 case 0x08:   // Backspace
@@ -98,14 +98,25 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     }
                     break;
 
-                case 0x0A:   // LF: line feed (LF+CR)
-                    head_y += next_interline;
+                case 0x0D:   // CR: carriage return (CR only, no LF)
                     head_x  = margin_left;
+                    if (!auto_lf) break;
+
+                case 0x0A:   // LF: line feed (no CR)
+                    head_y += interline;
                     if (head_y > margin_bottom)
                         FormFeed();
                     break;
 
-                case 0x0B:   // VT: line feed or next vertical tabulation
+                case 0x0B:   // VT: vertical tabulation
+                    if (vtab[0] == 0)
+                    {
+                        /* If vertical tab stops are not defined, VT does only LF */
+                        head_y += interline;
+                        if (head_y > margin_bottom)
+                            FormFeed();
+                    }
+                    else
                     {
                         int i = 0;
                         while (i < MPS_PRINTER_MAX_VTABULATIONS && vtab[i] < MPS_PRINTER_PAGE_PRINTABLE_HEIGHT)
@@ -125,10 +136,6 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     FormFeed();
                     break;
 
-                case 0x0D:   // CR: carriage return (CR only, no LF)
-                    head_x  = margin_left;
-                    break;
-
                 case 0x0E:   // SO: Double width printing ON
                     double_width = true;
                     break;
@@ -145,7 +152,7 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     step = MPS_PRINTER_STEP_PICA;
                     break;
 
-                case 0x13:   // DC3: No operation
+                case 0x13:   // DC3: Printer suspend
                     // ignore
                     break;
 
@@ -164,13 +171,11 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                 default:    // maybe a printable character
                     if (IsPrintable(input))
                     {
-                        next_interline = interline;
-
                         head_x += Char(Charset2Chargen(input));
                         if (head_x > margin_right)
                         {
                             head_y += interline;
-                            head_x  = 0;
+                            head_x  = margin_left;
 
                             if (head_y > margin_bottom)
                                 FormFeed();
@@ -192,19 +197,16 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
 
                 case 0x30:  // ESC 0 : Spacing = 1/8"
                     interline = 27;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x31:  // ESC 1 : Spacing = 7/72"
                     interline = 21;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x32:  // ESC 2 : Spacing = 1/6"
-                    interline = 36;
-                    next_interline = interline;
+                    interline = next_interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
@@ -213,42 +215,69 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     break;
 
                 case 0x34:  // ESC 4 : Set Top Of Form (TOF)
-                    // to be done
+                    margin_top = head_y;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x35:  // ESC 5 : Automatic LF ON/OFF
-                    // to be done
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x36:  // ESC 6 : IBM Table 2 selection
-                    // to be done
+                    charset = ibm_charset;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x37:  // ESC 7 : IBM Table 1 selection
-                    // to be done
+                    charset = 0;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
-                case 0x3A:  // ESC : : Print pitch = 1/12"
+                case 0x38:  // ESC 8 : Out of paper detection disabled
                     state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    // ignored
                     break;
 
-                case 0x3D:  // ESC = : Down Load Loading of user characters (DLL)
+                case 0x39:  // ESC 9 : Out of paper detection enabled
                     state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    // ignored
                     break;
 
-                case 0x41:  // ESC A : Spacing = n/72"
+                case 0x3A:  // ESC : :  Print pitch = 1/12"
+                    step = MPS_PRINTER_STEP_ELITE;
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x3C:  // ESC < : Set left to right printing for one line
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    // ignore
+                    break;
+
+                case 0x3D:  // ESC = : Down Lile Loading of user characters
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
+                case 0x3E:  // ESC > : Force bit 7 (MSB) to "1"
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    // ignore
+                    break;
+
+                case 0x3F:  // ESC ? : Change BIM density selected by graphics commands
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
+                case 0x40:  // ESC @ : Initialise printer (main reset)
+                    Init();
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    // te be done
+                    break;
+
+                case 0x41:  // ESC A : Prepare spacing = n/72"
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x42:  // ESC B : Vertical TAB stops program
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // te be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x43:  // ESC C : Set form length
@@ -256,8 +285,7 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     break;
 
                 case 0x44:  // ESC D : Horizontal TAB stops program
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // te be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x45:  // ESC E : Emphasized printing ON
@@ -270,34 +298,30 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
-                case 0x47:  // ESC G : Double Stike Printing ON
+                case 0x47:  // ESC G : Double Strike Printing ON
                     double_strike = true;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
-                case 0x48:  // ESC H : Double Stike Printing OFF
+                case 0x48:  // ESC H : Double Strike Printing OFF
                     double_strike = false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x49:  // ESC I : Select print definition
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x4A:  // ESC J : Skip n/216" of paper
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x4B:  // ESC K : Set normal density graphics
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x4C:  // ESC L : Set double density graphics
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x4E:  // ESC N : Defines bottom of from (BOF) in lines
@@ -308,14 +332,17 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     // Ignored in this version, usefull only for continuous paper feed
                     break;
 
-                case 0x51:  // ESC Q : De-select printer
+                case 0x51:  // ESC Q : Deselect printer
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x52:  // ESC R : Clear tab stops
+                    for (int i=0; i<MPS_PRINTER_MAX_HTABULATIONS; i++)
+                        htab[i] = 168+i*24*8;
+
+                    for (int i=0; i<MPS_PRINTER_MAX_VTABULATIONS; i++)
+                        vtab[i] = 0;
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x53:  // ESC S : Superscript/subscript printing
@@ -329,41 +356,34 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
 
                 case 0x55:  // ESC U : Mono/Bidirectional printing
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x57:  // ESC W : Double width characters ON/OFF
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x59:  // ESC Y : Double dentity BIM selection, normal speed
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x5A:  // ESC Z : Four times density BIM selection
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x5C:  // ESC \ : Print n characters from extended table
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 case 0x5E:  // ESC ^ : Print one character from extended table
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
-                case 0x5F:  // ESC _ : Overline ON/OFF
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                case 0x5F:  // ESC _ : Overline on/off
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
                 default:
-                    DBGMSGV("undefined IBM Pro Printer escape sequence %d", input);
+                    DBGMSGV("undefined IBM Proprinter escape sequence %d", input);
             }
 
             break;
@@ -373,10 +393,18 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
             param_count++;
             switch(esc_command)
             {
+                case 0x2D:  // ESC - : Underline on/off
+                    underline = input & 0x01 ? true : false;
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
                 case 0x33:  // ESC 3 : Spacing = n/216"
                     interline = input;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x35:  // ESC 5 : Automatic LF ON/OFF
+                    auto_lf = input & 0x01 ? true : false;
                     break;
 
                 case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
@@ -387,29 +415,138 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     break;
 
                 case 0x41:  // ESC A : Spacing = n/72"
-                    interline = input * 3;
-                    next_interline = interline;
+                    next_interline = input * 3;
                     state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x42:  // ESC B : Vertical TAB stops program
+                    if (input == 0)
+                        state = MPS_PRINTER_STATE_INITIAL;
+                    else
+                    {
+                        if ((param_count > 1 && input < param_build) || param_count > MPS_PRINTER_MAX_VTABULATIONS)
+                            state = MPS_PRINTER_STATE_INITIAL;
+                        else
+                        {
+                            param_build = input;
+                            vtab[param_count-1] = input * interline;
+                        }
+                    }
                     break;
 
                 case 0x43:  // ESC C : Set form length
                     // Ignored in this version
-                    if (input != 0)
+                    if (param_count == 1 && input != 0)
+                    {
+                        margin_bottom = input * interline;
                         state = MPS_PRINTER_STATE_INITIAL;
+                    }
+                    else if (param_count > 1)
+                    {
+                        if (input > 0 && input < 23)
+                            margin_bottom = input * 216;
+
+                        state = MPS_PRINTER_STATE_INITIAL;
+                    }
+
+                    if (margin_bottom > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT - MPS_PRINTER_HEAD_HEIGHT)
+                        margin_bottom = MPS_PRINTER_PAGE_PRINTABLE_HEIGHT - MPS_PRINTER_HEAD_HEIGHT;
+
                     break;
 
-                case 0x49:  // ESC I : Extend printable characters set
-                    // to be done
+                case 0x44:  // ESC D : Horizontal TAB stops program
+                    if (input == 0)
+                        state = MPS_PRINTER_STATE_INITIAL;
+                    else
+                    {
+                        if ((param_count > 1 && input < param_build) || param_count > MPS_PRINTER_MAX_HTABULATIONS)
+                            state = MPS_PRINTER_STATE_INITIAL;
+                        else
+                        {
+                            param_build = input;
+                            htab[param_count-1] = input * spacing_x[step][12];
+                        }
+                    }
+                    break;
+
+                case 0x49:  // ESC I : Select print definition
+                    switch (input)
+                    {
+                        case 0x00:  // Draft
+                        case 0x30:
+                            nlq = false;
+                            break;
+
+                        case 0x02:  // NLQ
+                        case 0x32:
+                            nlq = true;
+
+                            break;
+                        case 0x04:  // Draft + DLL enabled (not implemented)
+                        case 0x34:
+                            nlq = false;
+                            break;
+
+                        case 0x06:  // NLQ + DLL enabled (not implemented)
+                        case 0x36:
+                            nlq = true;
+                            break;
+                    }
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x4A:  // ESC J : Skip n/216" of paper
+                    head_y += input;
+                    if (head_y > margin_bottom)
+                        FormFeed();
                     state = MPS_PRINTER_STATE_INITIAL;
-                    // to be done
+                    break;
+
+                case 0x4B:  // ESC K : Set normal density graphics
+                    /* First parameter is data length LSB */
+                    if (param_count == 1)
+                    {
+                        param_build = input;
+                        bim_density  = bim_K_density;
+                        bim_position = 0;
+                    }
+                    /* Second parameter is data length MSB */
+                    if (param_count == 2) param_build |= input<<8;
+                    /* Follows the BIM data */
+                    if (param_count>2)
+                    {
+                        head_x += EpsonBim(input);
+                        if (param_count - 2 >= param_build)
+                            state = MPS_PRINTER_STATE_INITIAL;
+                    }
+                    break;
+
+                case 0x4C:  // ESC L : Set double density graphics
+                    /* First parameter is data length LSB */
+                    if (param_count == 1)
+                    {
+                        param_build = input;
+                        bim_density  = bim_L_density;
+                        bim_position = 0;
+                    }
+                    /* Second parameter is data length MSB */
+                    if (param_count == 2) param_build |= input<<8;
+                    /* Follows the BIM data */
+                    if (param_count>2)
+                    {
+                        head_x += EpsonBim(input);
+                        if (param_count - 2 >= param_build)
+                            state = MPS_PRINTER_STATE_INITIAL;
+                    }
                     break;
 
                 case 0x4E:  // ESC N : Defines bottom of from (BOF)
                     // Ignored in this version, usefull only for continuous paper feed
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x51:  // ESC Q : Deselect printer
+                    // ignore
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
@@ -418,79 +555,104 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
-                case 0x2D:  // ESC - : Underline on/off
-                    underline = input & 0x01 ? true : false;
+                case 0x55:  // ESC U : Mono/Bidirectional printing
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    // ignore
+                    break;
+
+                case 0x57:  // ESC W : Double width characters ON/OFF
+                    double_width = (input & 1) ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
-            }
-            break;
 
-        // =======  Escape sequence parameters
-        case MPS_PRINTER_STATE_PARAM:
-            param_count++;
-            switch(cbm_command)
-            {
-                case 0x08:   // BIT IMG: bitmap image
-                    if (param_count == 1 && input == 26)
+                case 0x59:  // ESC Y : Double dentity BIM selection, normal speed
+                    /* First parameter is data length LSB */
+                    if (param_count == 1)
                     {
-                        // use TAB code to handle BIT IMG SUB
-                        cbm_command = 0x09;
+                        param_build = input;
+                        bim_density  = bim_Y_density;
+                        bim_position = 0;
                     }
-                    else
+                    /* Second parameter is data length MSB */
+                    if (param_count == 2) param_build |= input<<8;
+                    /* Follows the BIM data */
+                    if (param_count>2)
                     {
-                        if (input & 0x80)
-                        {
-                            head_x += CBMBim(input & 0x7F);
-                        }
-                        else
-                        {
-                            // Was not graphic data, reinject to interpreter
+                        head_x += EpsonBim(input);
+                        if (param_count - 2 >= param_build)
                             state = MPS_PRINTER_STATE_INITIAL;
-                            IBMpp_Interpreter(input);
-
-                        }
                     }
                     break;
 
-                case 0x09:   // BIT IMG SUB: bitmap image repeated
-                    if (param_count == 2)
+                case 0x5A:  // ESC Z : Four times density BIM selection
+                    /* First parameter is data length LSB */
+                    if (param_count == 1)
                     {
-                        // Get number of repeats
-                        param_build = (input==0) ? 256 : input;
-                        bim_count = 0;
+                        param_build = input;
+                        bim_density  = bim_Z_density;
+                        bim_position = 0;
                     }
-                    else
+                    /* Second parameter is data length MSB */
+                    if (param_count == 2) param_build |= input<<8;
+                    /* Follows the BIM data */
+                    if (param_count>2)
                     {
-                        if (input & 0x80 && bim_count < MPS_PRINTER_MAX_BIM_SUB)
-                        {
-                            bim_sub[bim_count++] = input & 0x7F;
-                        }
-                        else
-                        {
-                            // Was not graphic data, print bim and reinject to interpreter
-                            for (int i=0; i<param_build; i++)
-                                for (int j=0; j<bim_count; j++)
-                                    head_x += CBMBim(bim_sub[j]);
-
+                        head_x += EpsonBim(input);
+                        if (param_count - 2 >= param_build)
                             state = MPS_PRINTER_STATE_INITIAL;
-                            IBMpp_Interpreter(input);
-                        }
                     }
                     break;
 
-                case 0x10:  // POS : Jump to horizontal position in number of chars
-                    if (param_count == 1) param_build = input & 0x0F;
-                    if (param_count == 2)
+                case 0x5C:  // ESC \ : Print n characters from extended table
+                    /* First parameter is data length LSB */
+                    if (param_count == 1) param_build = input;
+                    /* Second parameter is data length MSB */
+                    if (param_count == 2) param_build |= input<<8;
+                    /* Follows the BIM data */
+                    if (param_count>2)
                     {
-                        param_build = (param_build * 10) + (input & 0x0F);
-                        if (param_build < 80 && (param_build * 24 ) > head_x)
+
+                        if (IsPrintable(input))
+                            head_x += Char(Charset2Chargen(input));
+                        else
+                            head_x += Char(Charset2Chargen(' '));
+
+                        if (head_x > margin_right)
                         {
-                            head_x = 24 * param_build;
+                            head_y += interline;
+                            head_x  = margin_left;
+
+                            if (head_y > margin_bottom)
+                                FormFeed();
                         }
 
-                        state = MPS_PRINTER_STATE_INITIAL;
+                        if (param_count - 2 >= param_build)
+                            state = MPS_PRINTER_STATE_INITIAL;
                     }
                     break;
+
+                case 0x5E:  // ESC ^ : Print one character from extended table
+                    if (IsPrintable(input))
+                        head_x += Char(Charset2Chargen(input));
+                    else
+                        head_x += Char(Charset2Chargen(' '));
+
+                    if (head_x > margin_right)
+                    {
+                        head_y += interline;
+                        head_x  = margin_left;
+
+                        if (head_y > margin_bottom)
+                            FormFeed();
+                    }
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x5F:  // ESC _ : Overline on/off
+                    overline = input & 0x01 ? true : false;
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
             }
             break;
 

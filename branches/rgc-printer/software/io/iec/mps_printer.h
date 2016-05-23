@@ -62,7 +62,7 @@
 /******************************  Debug macros  **************************/
 
 /* Uncomment to enable debug messages to serial port */
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define DBGMSG(x) printf(__FILE__ " %d: " x "\n", __LINE__)
@@ -197,15 +197,17 @@ class MpsPrinter
         bool quoted;            /* Commodore quoted listing */
         bool double_strike;     /* Print twice at the same place */
         bool underline;         /* Underline is on */
+        bool overline;          /* Overline is on (not implemented yet) */
         bool bold;              /* Bold is on */
         bool italic;            /* Italic is on */
+        bool auto_lf;           /* Automatic LF on CR (IBM Proprinter only) */
 
         /* =======  Current CBM charset variant (Uppercases/graphics or Lowercases/Uppercases) */
         uint8_t charset_variant;
 
         /* =======  Interpreter state */
         mps_printer_state_t state;
-        uint8_t param_count;
+        uint16_t param_count;
         uint32_t param_build;
         uint8_t bim_sub[MPS_PRINTER_MAX_BIM_SUB];
         uint16_t bim_count;

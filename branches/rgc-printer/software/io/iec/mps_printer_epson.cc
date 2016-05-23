@@ -222,7 +222,7 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     break;
 
                 case 0x0A:   // LF: line feed (LF+CR)
-                    head_y += next_interline;
+                    head_y += interline;
                     head_x  = margin_left;
                     if (head_y > margin_bottom)
                         FormFeed();
@@ -232,7 +232,7 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     if (vtab[0] == 0)
                     {
                         /* If vertical tab stops are not defined, VT does only LF */
-                        head_y += next_interline;
+                        head_y += interline;
                         if (head_y > margin_bottom)
                             FormFeed();
                     }
@@ -299,8 +299,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                 default:    // maybe a printable character
                     if (IsPrintable(input))
                     {
-                        next_interline = interline;
-
                         head_x += Char(Charset2Chargen(input));
                         if (head_x > margin_right)
                         {
@@ -362,19 +360,16 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x30:  // ESC 0 : Spacing = 1/8"
                     interline = 27;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x31:  // ESC 1 : Spacing = 7/72"
                     interline = 21;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x32:  // ESC 2 : Spacing = 1/6"
                     interline = 36;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
@@ -679,7 +674,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x33:  // ESC 3 : Spacing = n/216"
                     interline = input;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
@@ -687,13 +681,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     if (param_count == 3)
                         state = MPS_PRINTER_STATE_INITIAL;
                     // ignored
-                    break;
-
-                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
-                    if (param_count == 1) param_build = input;
-                    if (param_count == 2) param_build |= input<<8;
-                    if ((param_count > 2) && (param_count == param_build+2))
-                        state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x3F:  // ESC ? : Change BIM density selected by graphics commands
@@ -718,7 +705,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x41:  // ESC A : Spacing = n/72"
                     interline = input * 3;
-                    next_interline = interline;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
@@ -852,7 +838,7 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x57:  // ESC W : Double width characters ON/OFF
                     double_width = (input & 1) ? true : false;
-                    // to be done
+                    state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x59:  // ESC Y : Double dentity BIM selection, normal speed
@@ -972,75 +958,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                 case 0x78:  // ESC x : DRAFT/NLQ print mode selection
                     nlq = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
-                    break;
-            }
-            break;
-
-        // =======  Escape sequence parameters
-        case MPS_PRINTER_STATE_PARAM:
-            param_count++;
-            switch(cbm_command)
-            {
-                case 0x08:   // BIT IMG: bitmap image
-                    if (param_count == 1 && input == 26)
-                    {
-                        // use TAB code to handle BIT IMG SUB
-                        cbm_command = 0x09;
-                    }
-                    else
-                    {
-                        if (input & 0x80)
-                        {
-                            head_x += CBMBim(input & 0x7F);
-                        }
-                        else
-                        {
-                            // Was not graphic data, reinject to interpreter
-                            state = MPS_PRINTER_STATE_INITIAL;
-                            Epson_Interpreter(input);
-
-                        }
-                    }
-                    break;
-
-                case 0x09:   // BIT IMG SUB: bitmap image repeated
-                    if (param_count == 2)
-                    {
-                        // Get number of repeats
-                        param_build = (input==0) ? 256 : input;
-                        bim_count = 0;
-                    }
-                    else
-                    {
-                        if (input & 0x80 && bim_count < MPS_PRINTER_MAX_BIM_SUB)
-                        {
-                            bim_sub[bim_count++] = input & 0x7F;
-                        }
-                        else
-                        {
-                            // Was not graphic data, print bim and reinject to interpreter
-                            for (int i=0; i<param_build; i++)
-                                for (int j=0; j<bim_count; j++)
-                                    head_x += CBMBim(bim_sub[j]);
-
-                            state = MPS_PRINTER_STATE_INITIAL;
-                            Epson_Interpreter(input);
-                        }
-                    }
-                    break;
-
-                case 0x10:  // POS : Jump to horizontal position in number of chars
-                    if (param_count == 1) param_build = input & 0x0F;
-                    if (param_count == 2)
-                    {
-                        param_build = (param_build * 10) + (input & 0x0F);
-                        if (param_build < 80 && (param_build * 24 ) > head_x)
-                        {
-                            head_x = 24 * param_build;
-                        }
-
-                        state = MPS_PRINTER_STATE_INITIAL;
-                    }
                     break;
             }
             break;
