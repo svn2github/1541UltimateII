@@ -41,9 +41,9 @@
 #define MPS_PRINTER_PAGE_HEIGHT             2580
 #define MPS_PRINTER_PAGE_DEPTH              2
 #define MPS_PRINTER_PAGE_OFFSET_LEFT        32
-#define MPS_PRINTER_PAGE_OFFSET_TOP         32
+#define MPS_PRINTER_PAGE_OFFSET_TOP         210
 #define MPS_PRINTER_PAGE_PRINTABLE_WIDTH    1920
-#define MPS_PRINTER_PAGE_PRINTABLE_HEIGHT   2516
+#define MPS_PRINTER_PAGE_PRINTABLE_HEIGHT   2160
 #define MPS_PRINTER_HEAD_HEIGHT             27
 
 #define MPS_PRINTER_MAX_HTABULATIONS        32
@@ -125,7 +125,7 @@ class MpsPrinter
         static uint16_t charset_epson_extended[128];
 
         /* Dot spacing on X axis depending on character width (pical, elite, compressed,...) */
-        static uint8_t spacing_x[7][13];
+        static uint8_t spacing_x[7][26];
 
         /* Dot spacing on Y axis depending on character style (normal, superscript, subscript) */
         static uint8_t spacing_y[6][17];
@@ -270,7 +270,7 @@ class MpsPrinter
 #endif
         void Print(const char* filename);
         void Ink(uint16_t x, uint16_t y, uint8_t c=3);
-        void Dot(uint16_t x, uint16_t y);
+        void Dot(uint16_t x, uint16_t y, bool b=false);
         uint16_t Charset2Chargen(uint8_t input);
         uint16_t Char(uint16_t c);
         uint16_t CharItalic(uint16_t c, uint16_t x, uint16_t y);

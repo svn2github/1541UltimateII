@@ -141,8 +141,8 @@ MpsPrinter::CBMBim(uint8_t head)
         if (head & 0x01)
         {
             /* In MPS, BIM uses double width, dots are printed twice */
-            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
-            Dot(head_x+spacing_x[0][1], head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
+            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j], true);
+            Dot(head_x+spacing_x[0][1], head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j], true);
         }
 
         head >>= 1;
@@ -266,7 +266,7 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     head_y += next_interline;
                     head_x  = 0;
                     quoted = false;
-                    if (head_y > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT)
+                    if (head_y > margin_bottom)
                         FormFeed();
                     break;
 
@@ -331,6 +331,9 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                         {
                             head_y += interline;
                             head_x  = 0;
+
+                            if (head_y > margin_bottom)
+                                FormFeed();
                         }
                     }
                     break;

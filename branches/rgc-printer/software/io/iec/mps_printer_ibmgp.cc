@@ -201,6 +201,10 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
+                case 0x21:  // ESC ! : Select graphics layout types
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
                 case 0x2D:  // ESC - : Underline on/off
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
@@ -222,6 +226,16 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
 
                 case 0x33:  // ESC 3 : Spacing = n/216"
                     state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
+                case 0x34:  // ESC 4 : Italic ON
+                    italic = true;
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x35:  // ESC 5 : Italic OFF
+                    italic = false;
+                    state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
                 case 0x36:  // ESC 6 : IBM Table 2 selection
@@ -251,6 +265,12 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
 
                 case 0x3D:  // ESC = : Down Lile Loading of user characters
                     state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
+                case 0x40:  // ESC @ : Initialise printer (main reset)
+                    Init();
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    // te be done
                     break;
 
                 case 0x41:  // ESC A : Spacing = n/72"
@@ -359,6 +379,19 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
             param_count++;
             switch(esc_command)
             {
+                case 0x21:  // ESC ! : Select graphics layout types
+                    step = MPS_PRINTER_STEP_PICA;
+                    if (input & 4) step = MPS_PRINTER_STEP_CONDENSED;
+                    if (input & 1) step = MPS_PRINTER_STEP_ELITE;
+                    underline = (input & 0x80) ? true : false;
+                    italic = (input & 0x40) ? true : false;
+                    double_width = (input & 0x20) ? true : false;
+                    double_strike = (input & 0x10) ? true : false;
+                    bold = (input & 0x08) ? true : false;
+                    //porportional = (input & 0x02) ? true : false;
+                    state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
                 case 0x2D:  // ESC - : Underline on/off
                     underline = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;

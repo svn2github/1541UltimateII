@@ -652,7 +652,6 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     overline = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
-
             }
             break;
 

@@ -41,15 +41,15 @@
 ************************************************************************/
 
 /* =======  Horizontal pitch for letters */
-uint8_t MpsPrinter::spacing_x[7][13] =
+uint8_t MpsPrinter::spacing_x[7][26] =
 {
-    {  0, 2, 4, 6, 8,10,12,14,16,18,20,22,24 },    // Pica              24px/char
-    {  0, 2, 3, 5, 7, 8,10,12,13,15,17,19,20 },    // Elite             20px/char
-    {  0, 1, 3, 4, 5, 7, 8, 9,11,12,13,15,16 },    // Micro             16px/char
-    {  0, 1, 2, 3, 5, 6, 7, 8, 9,10,12,13,14 },    // Compressed        14px/char
-    {  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12 },    // Pica Compressed   12px/char
-    {  0, 1, 2, 2, 3, 4, 5, 6, 7, 7, 8, 9,10 },    // Elite Compressed  10px/char
-    {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8 },    // Micro Compressed  8px/char
+    {  0, 2, 4, 6, 8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50 },    // Pica              24px/char
+    {  0, 2, 3, 5, 7, 8,10,12,13,15,17,18,20,22,23,25,27,28,30,32,33,35,37,38,40,42 },    // Elite             20px/char
+    {  0, 1, 3, 4, 5, 7, 8, 9,11,12,13,15,16,17,19,20,21,23,24,25,27,28,29,31,32,33 },    // Micro             16px/char
+    {  0, 1, 2, 3, 5, 6, 7, 8, 9,10,12,13,14,15,16,17,19,20,21,22,23,24,26,27,28,29 },    // Compressed        14px/char
+    {  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25 },    // Pica Compressed   12px/char
+    {  0, 1, 2, 2, 3, 4, 5, 6, 7, 7, 8, 9,10,11,12,12,13,14,15,16,17,17,18,19,20,21 },    // Elite Compressed  10px/char
+    {  0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 8, 9, 9,10,11,11,12,13,13,14,15,15,16,17 },    // Micro Compressed  8px/char
 };
 
 /* =======  Vertical pitch for sub/super-script */
@@ -619,8 +619,8 @@ MpsPrinter::Print(const char * filename)
 }
 
 /************************************************************************
-*                               MpsPrinter::Dot(x,y)          Private   *
-*                               ~~~~~~~~~~~~~~~~~~~~                    *
+*                             MpsPrinter::Dot(x,y,b)          Private   *
+*                             ~~~~~~~~~~~~~~~~~~~~~~                    *
 * Function : Prints a single dot on page, dot size depends on dentity   *
 *            setting. If position is out of printable area, no dot is   *
 *            printed                                                    *
@@ -629,6 +629,8 @@ MpsPrinter::Print(const char * filename)
 *                                                                       *
 *    x : (uint16_t) pixel position from left of printable area of page  *
 *    y : (uint16_t) pixel position from top of printable area of page   *
+*    b : (bool) true if DOT is part of BIM. No double-strike or bold    *
+*        treatment is applied if true                                   *
 *                                                                       *
 *-----------------------------------------------------------------------*
 * Outputs:                                                              *
@@ -638,7 +640,7 @@ MpsPrinter::Print(const char * filename)
 ************************************************************************/
 
 void
-MpsPrinter::Dot(uint16_t x, uint16_t y)
+MpsPrinter::Dot(uint16_t x, uint16_t y, bool b)
 {
     /* =======  Check if position is out of range */
 
@@ -689,13 +691,16 @@ MpsPrinter::Dot(uint16_t x, uint16_t y)
             break;
     }
 
-    /* -------  If double strike is ON, draw a second dot just to the right of the first one */
-    if (double_strike)
+
+    if (!b)   /* This is not BIM related, we can double strike and bold */
     {
-        /* prevent infinite recursion loop */
-        double_strike = false;
-        Dot(x,y+1);
-        double_strike = true;
+        /* -------  If double strike is ON, draw a second dot just to the right of the first one */
+        if (bold) Dot(x+2,y,true);
+        if (double_strike)
+        {
+            Dot(x,y+1,true);
+            if (bold) Dot(x+2,y+1,true);
+        }
     }
 
     /* -------  Now we know that the page is not blank */
@@ -837,60 +842,63 @@ MpsPrinter::CharItalic(uint16_t c, uint16_t x, uint16_t y)
     uint8_t shift = chargen_italic[c][11] & 1;    // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
-    for (int i=0; i<12; i++)
+    for (int i=0; i<(double_width?24:12); i++)
     {
-        /* -------  Last is always 0 */
-        uint8_t cur_head = (i==11)?0:chargen_italic[c][i];
+        uint8_t cur_head;
+
+        if (double_width)
+        {
+            if (i&1)
+                cur_head = 0;
+            else
+            {
+                cur_head = (i>>1 == 11) ? 0 : chargen_italic[c][i>>1];
+                if (i>1) cur_head |= chargen_italic[c][(i>>1)-1];
+            }
+        }
+        else
+        {
+            cur_head = (i == 11) ? 0 : chargen_italic[c][i];
+        }
 
         /* -------  Reverse is negative printing */
         if (reverse)
         {
+            uint8_t saved_head = cur_head;
             cur_head = cur_head | lst_head;
             cur_head ^= 0xFF;
-            lst_head = chargen_italic[c][i];
+            lst_head = saved_head;
         }
 
-        /* -------  On double width, each pattern is printed twice */
-        for (int d=0; d<(double_width?2:1); d++)
+        /* Calculate x position according to width and stepping */
+        int dx = x + spacing_x[step][i];
+
+        /* -------  Each dot to print (LSB is up) */
+        for (int j=0; j<8; j++)
         {
-            /* This is what we'll print */
-            uint8_t head = cur_head;
+            /* pin 9 is used for underline, can't be used on shifted chars */
+            if (underline && shift && script == MPS_PRINTER_SCRIPT_NORMAL && j==7) continue;
 
-            /* Calculate x position according to width and stepping */
-            int dx = x + ((spacing_x[step][i]+d*spacing_x[step][1])<<(double_width?1:0));
-
-            /* -------  Each dot to print (LSB is up) */
-            for (int j=0; j<8; j++)
+            /* Need to print a dot ?*/
+            if (cur_head & 0x01)
             {
-                /* pin 9 is used for underline, can't be used on shifted chars */
-                if (underline && shift && j==7) continue;
+                /* vertical position according to stepping for normal, subscript or superscript */
+                int dy = y+spacing_y[script][j+shift];
 
-                /* Need to print a dot ?*/
-                if (head & 0x01)
-                {
-                    /* vertical position according to stepping for normal, subscript or superscript */
-                    int dy = y+spacing_y[script][j+shift];
-
-                    /* The dot itself */
-                    Dot(dx, dy);
-
-                    /* Double dot to the right if printing bold */
-                    if (bold) Dot(dx+spacing_x[step][1], dy);
-                }
-
-                head >>= 1;
-            }
-
-            /* -------  Need to underline ? */
-
-            /* Underline is one dot every 2 pixels */
-            if (!(i&1) && underline)
-            {
-                int dy = y+spacing_y[script][8];
-
+                /* The dot itself */
                 Dot(dx, dy);
-                if (bold) Dot(dx+(spacing_x[step][1]<<(double_width?1:0)), dy);
             }
+
+            cur_head >>= 1;
+        }
+
+        /* -------  Need to underline ? */
+
+        /* Underline is one dot every 2 pixels */
+        if (!(i&1) && underline)
+        {
+            int dy = y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][8];
+            Dot(dx, dy);
         }
     }
 
@@ -926,60 +934,71 @@ MpsPrinter::CharDraft(uint16_t c, uint16_t x, uint16_t y)
     uint8_t shift = chargen_draft[c][11] & 1;     // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
-    for (int i=0; i<12; i++)
+    for (int i=0; i<(double_width?24:12); i++)
     {
-        /* -------  Last is always 0 */
-        uint8_t cur_head = (i==11)?0:chargen_draft[c][i];
+        uint8_t cur_head;
+
+        if (double_width)
+        {
+            if (i&1)
+                cur_head = 0;
+            else
+            {
+                cur_head = (i>>1 == 11) ? 0 : chargen_draft[c][i>>1];
+                if (i>1) cur_head |= chargen_draft[c][(i>>1)-1];
+            }
+        }
+        else
+        {
+            cur_head = (i == 11) ? 0 : chargen_draft[c][i];
+        }
 
         /* -------  Reverse is negative printing */
         if (reverse)
         {
+            uint8_t saved_head = cur_head;
             cur_head = cur_head | lst_head;
             cur_head ^= 0xFF;
-            lst_head = chargen_draft[c][i];
+            lst_head = saved_head;
         }
 
-        /* -------  On double width, each pattern is printed twice */
-        for (int d=0; d<(double_width?2:1); d++)
+        /* Calculate x position according to width and stepping */
+        int dx = x + spacing_x[step][i];
+
+        /* -------  Each dot to print (LSB is up) */
+        for (int j=0; j<8; j++)
         {
-            /* This is what we'll print */
-            uint8_t head = cur_head;
+            /* pin 9 is used for underline, can't be used on shifted chars */
+            if (underline && shift && script == MPS_PRINTER_SCRIPT_NORMAL && j==7) { cur_head >>= 1; continue; }
+            if (overline && j==(shift?3:4)) { cur_head >>= 1; continue; }
 
-            /* Calculate x position according to width and stepping */
-            int dx = x + ((spacing_x[step][i]+d*spacing_x[step][1])<<(double_width?1:0));
-
-            /* -------  Each dot to print (LSB is up) */
-            for (int j=0; j<8; j++)
+            /* Need to print a dot ?*/
+            if (cur_head & 0x01)
             {
-                /* pin 9 is used for underline, can't be used on shifted chars */
-                if (underline && shift && j==7) continue;
+                /* vertical position according to stepping for normal, subscript or superscript */
+                int dy = y+spacing_y[script][j+shift];
 
-                /* Need to print a dot ?*/
-                if (head & 0x01)
-                {
-                    /* vertical position according to stepping for normal, subscript or superscript */
-                    int dy = y+spacing_y[script][j+shift];
-
-                    /* The dot itself */
-                    Dot(dx, dy);
-
-                    /* Double dot to the right if printing bold */
-                    if (bold) Dot(dx+(spacing_x[step][1]<<(double_width?1:0)), dy);
-                }
-
-                head >>= 1;
-            }
-
-            /* -------  Need to underline ? */
-
-            /* Underline is one dot every 2 pixels */
-            if (!(i&1) && underline)
-            {
-                int dy = y+spacing_y[script][8];
-
+                /* The dot itself */
                 Dot(dx, dy);
-                if (bold) Dot(dx+(spacing_x[step][1]<<(double_width?1:0)), dy);
             }
+
+            cur_head >>= 1;
+        }
+
+        /* -------  Need to underline ? */
+
+        /* Overline is one dot every 2 pixels */
+        if (!(i&1) && overline)
+        {
+            int dy = y+spacing_y[script][4];
+            Dot(dx, dy);
+        }
+
+        /* Underline is one dot every 2 pixels */
+        if (!(i&1) && underline)
+        {
+            int dy = y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][8];
+            Dot(dx, dy);
         }
     }
 
@@ -1022,60 +1041,74 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
     uint8_t shift = chargen_nlq_high[c][11] & 1;  // 8 down pins from 9 ?
 
     /* =======  For each value of the pattern */
-    for (int i=0; i<12; i++)
+    for (int i=0; i<(double_width?24:12); i++)
     {
         uint8_t cur_head_high;
         uint8_t cur_head_low;
 
         /* -------  Calculate last column */
-        if (i==11)
+        if (double_width)
         {
-            if (chargen_nlq_high[c][11] & 0x04)
-            {
-                /* Repeat last colums */
-                cur_head_high = chargen_nlq_high[c][10];
-            }
-            else
-            {
-                /* Blank column */
-                cur_head_high = 0;
-            }
+            cur_head_high = (i>>1 == 11) ? 0 : chargen_nlq_high[c][i>>1];
+            if (i>1) cur_head_high |= chargen_nlq_high[c][(i>>1)-1];
 
-            if (chargen_nlq_low[c][11] & 0x04)
-            {
-                /* Repeat last colums */
-                cur_head_low = chargen_nlq_low[c][10];
-            }
-            else
-            {
-                /* Blank column */
-                cur_head_low = 0;
-            }
+            cur_head_low = (i>>1 == 11) ? 0 : chargen_nlq_low[c][i>>1];
+            if (i>1) cur_head_low |= chargen_nlq_low[c][(i>>1)-1];
         }
         else
         {
-            /* Not on last column, get data from chargen table */
-            cur_head_high = chargen_nlq_high[c][i];
-            cur_head_low = chargen_nlq_low[c][i];
+            if (i==11)
+            {
+                if (chargen_nlq_high[c][11] & 0x04)
+                {
+                    /* Repeat last colums */
+                    cur_head_high = chargen_nlq_high[c][10];
+                }
+                else
+                {
+                    /* Blank column */
+                    cur_head_high = 0;
+                }
+
+                if (chargen_nlq_low[c][11] & 0x04)
+                {
+                    /* Repeat last colums */
+                    cur_head_high = chargen_nlq_low[c][10];
+                }
+                else
+                {
+                    /* Blank column */
+                    cur_head_low = 0;
+                }
+            }
+            else
+            {
+                /* Not on last column, get data from chargen table */
+                cur_head_high = chargen_nlq_high[c][i];
+                cur_head_low = chargen_nlq_low[c][i];
+            }
         }
 
         /* -------  Reverse is negative printing */
         if (reverse)
         {
+            uint8_t saved_head_high = cur_head_high;
+            uint8_t saved_head_low = cur_head_low;
+
             cur_head_high = cur_head_high | lst_head_high;
             cur_head_high ^= 0xFF;
-            lst_head_high = chargen_nlq_high[c][i];
+            lst_head_high = saved_head_high;
 
             cur_head_low = cur_head_low | lst_head_low;
             cur_head_low ^= 0xFF;
-            lst_head_low = chargen_nlq_low[c][i];
+            lst_head_low = saved_head_low;
         }
 
         /* -------  First we start with the high pattern */
         uint8_t head = cur_head_high;
 
         /* Calculate x position according to width and stepping */
-        int dx = x + (spacing_x[step][i]<<(double_width?1:0));
+        int dx = x + spacing_x[step][i];
 
         /* -------  Each dot to print (LSB is up) */
         for (int j=0; j<8; j++)
@@ -1088,18 +1121,6 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
 
                 /* The dot itself */
                 Dot(dx, dy);
-
-                /* On double width, another dot to the right */
-                if (double_width) Dot(dx+spacing_x[step][1]*2, dy);
-
-                /* On bold, another dot to rhe right */
-                if (bold)
-                {
-                    Dot(dx+spacing_x[step][1], dy);
-
-                    /* On bold and double width, another dot (so 4 dots total) */
-                    if (double_width) Dot(dx+spacing_x[step][1]*3, dy);
-                }
             }
 
             head >>= 1;
@@ -1112,7 +1133,7 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
         for (int j=0; j<8; j++)
         {
             /* pin 9 on low pattern is used for underline, can't be used on shifted chars */
-            if (underline && shift && j==7) continue;
+            if (underline && shift && script == MPS_PRINTER_SCRIPT_NORMAL && j==7) continue;
 
             /* Need to print a dot ?*/
             if (head & 0x01)
@@ -1122,18 +1143,6 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
 
                 /* The dot itself */
                 Dot(dx, dy);
-
-                /* On double width, another dot to the right */
-                if (double_width) Dot(dx+spacing_x[step][1]*2, dy);
-
-                /* On bold, another dot to rhe right */
-                if (bold)
-                {
-                    Dot(dx+spacing_x[step][1], dy);
-
-                    /* On bold and double width, another dot (so 4 dots total) */
-                    if (double_width) Dot(dx+spacing_x[step][1]*3, dy);
-                }
             }
 
             head >>= 1;
@@ -1143,10 +1152,8 @@ MpsPrinter::CharNLQ(uint16_t c, uint16_t x, uint16_t y)
         /* Underline is one dot every pixel on NLQ quality */
         if (underline)
         {
-            int dy = y+spacing_y[script+1][8];
-
+            int dy = y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL+1][8];
             Dot(dx, dy);
-            if (bold) Dot(dx+spacing_x[step][1], dy);
         }
     }
 

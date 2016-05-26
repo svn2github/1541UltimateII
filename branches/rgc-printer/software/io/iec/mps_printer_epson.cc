@@ -113,7 +113,7 @@ MpsPrinter::EpsonBim(uint8_t head)
         /* Need to print a dot ?*/
         if (head & 0x80)
         {
-            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
+            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j], true);
         }
 
         head <<= 1;
@@ -152,7 +152,7 @@ MpsPrinter::EpsonBim9(uint8_t head, uint8_t low)
         /* Need to print a dot ?*/
         if (head & 0x80)
         {
-            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j]);
+            Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][j], true);
         }
 
         head <<= 1;
@@ -160,7 +160,7 @@ MpsPrinter::EpsonBim9(uint8_t head, uint8_t low)
 
     if (low)
     {
-        Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][8]);
+        Dot(head_x, head_y+spacing_y[MPS_PRINTER_SCRIPT_NORMAL][8], true);
     }
 
     /* Return horizontal spacing */
