@@ -263,7 +263,7 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
                     // ignore
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters
+                case 0x3D:  // ESC = : Down Line Loading of user characters
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
@@ -369,7 +369,8 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
                     break;
 
                 default:
-                    DBGMSGV("undefined IBM Graphics Printer escape sequence %d", input);
+                    DBGMSGV("undefined IBMgp printer escape sequence %d", input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
 
             break;
@@ -402,7 +403,7 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
+                case 0x3D:  // ESC = : Down Line Loading of user characters (parse but ignore)
                     if (param_count == 1) param_build = input;
                     if (param_count == 2) param_build |= input<<8;
                     if ((param_count > 2) && (param_count == param_build+2))
@@ -590,11 +591,16 @@ MpsPrinter::IBMgp_Interpreter(uint8_t input)
                     nlq = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
+
+                default:
+                    DBGMSGV("undefined IBMgp printer escape sequence 0x%02X parameter %d", esc_command, input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
             break;
 
         default:
             DBGMSGV("undefined printer state %d", state);
+            state = MPS_PRINTER_STATE_INITIAL;
     }
 }
 

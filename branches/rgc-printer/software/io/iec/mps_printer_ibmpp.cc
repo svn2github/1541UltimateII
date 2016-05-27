@@ -253,16 +253,7 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     // ignore
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters
-                    state = MPS_PRINTER_STATE_ESC_PARAM;
-                    break;
-
-                case 0x3E:  // ESC > : Force bit 7 (MSB) to "1"
-                    state = MPS_PRINTER_STATE_INITIAL;
-                    // ignore
-                    break;
-
-                case 0x3F:  // ESC ? : Change BIM density selected by graphics commands
+                case 0x3D:  // ESC = : Down Line Loading of user characters
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
@@ -324,7 +315,7 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
-                case 0x4E:  // ESC N : Defines bottom of from (BOF) in lines
+                case 0x4E:  // ESC N : Defines bottom of form (BOF) in lines
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
@@ -383,7 +374,8 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     break;
 
                 default:
-                    DBGMSGV("undefined IBM Proprinter escape sequence %d", input);
+                    DBGMSGV("undefined IBMpp printer escape sequence %d", input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
 
             break;
@@ -407,7 +399,7 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     auto_lf = input & 0x01 ? true : false;
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
+                case 0x3D:  // ESC = : Down Line Loading of user characters (parse but ignore)
                     if (param_count == 1) param_build = input;
                     if (param_count == 2) param_build |= input<<8;
                     if ((param_count > 2) && (param_count == param_build+2))
@@ -652,11 +644,16 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     overline = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
+
+                default:
+                    DBGMSGV("undefined IBMpp printer escape sequence 0x%02X parameter %d", esc_command, input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
             break;
 
         default:
             DBGMSGV("undefined printer state %d", state);
+            state = MPS_PRINTER_STATE_INITIAL;
     }
 }
 

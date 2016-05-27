@@ -433,7 +433,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                 case 0x40:  // ESC @ : Initialise printer (main reset)
                     Init();
                     state = MPS_PRINTER_STATE_INITIAL;
-                    // te be done
                     break;
 
                 case 0x41:  // ESC A : Spacing = n/72"
@@ -525,12 +524,10 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x55:  // ESC U : Mono/Bidirectional printing
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x57:  // ESC W : Double width characters ON/OFF
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x59:  // ESC Y : Double dentity BIM selection, normal speed
@@ -563,12 +560,10 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
 
                 case 0x70:  // ESC p : Proportional spacing ON/OFF
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x73:  // ESC s : Half speed printing ON/OFF
                     state = MPS_PRINTER_STATE_ESC_PARAM;
-                    // to be done
                     break;
 
                 case 0x78:  // ESC x : DRAFT/NLQ print mode selection
@@ -576,7 +571,8 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     break;
 
                 default:
-                    DBGMSGV("undefined epson printer escape sequence %d", input);
+                    DBGMSGV("undefined Epson printer escape sequence %d", input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
 
             break;
@@ -586,22 +582,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
             param_count++;
             switch(esc_command)
             {
-                case 0x10:  // ESC POS : Jump to horizontal position in number of dots
-                    if (param_count == 1) param_build = input << 8;
-                    if (param_count == 2)
-                    {
-                        param_build |= input;
-                        param_build <<= 2;
-
-                        if ((param_build < MPS_PRINTER_PAGE_PRINTABLE_WIDTH) && param_build > head_x)
-                        {
-                            head_x = param_build;
-                        }
-
-                        state = MPS_PRINTER_STATE_INITIAL;
-                    }
-                    break;
-
                 case 0x21:  // ESC ! : Select graphics layout types
                     step = MPS_PRINTER_STEP_PICA;
                     if (input & 4) step = MPS_PRINTER_STEP_CONDENSED;
@@ -724,7 +704,6 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     break;
 
                 case 0x43:  // ESC C : Set form length
-                    // Ignored in this version
                     if (param_count == 1 && input != 0)
                     {
                         margin_bottom = input * interline;
@@ -959,11 +938,16 @@ MpsPrinter::Epson_Interpreter(uint8_t input)
                     nlq = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
                     break;
+
+                default:
+                    DBGMSGV("undefined Epson printer escape sequence 0x%02X parameter %d", esc_command, input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
             break;
 
         default:
             DBGMSGV("undefined printer state %d", state);
+            state = MPS_PRINTER_STATE_INITIAL;
     }
 }
 

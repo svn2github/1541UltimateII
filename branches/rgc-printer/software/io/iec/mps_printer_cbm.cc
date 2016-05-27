@@ -374,7 +374,7 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     // ignored
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters
+                case 0x3D:  // ESC = : Down Line Loading of user characters
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
@@ -432,7 +432,8 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     break;
 
                 default:
-                    DBGMSGV("undefined printer escape sequence %d", input);
+                    DBGMSGV("undefined CBM printer escape sequence %d", input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
 
             break;
@@ -458,7 +459,7 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     }
                     break;
 
-                case 0x3D:  // ESC = : Down Lile Loading of user characters (parse but ignore)
+                case 0x3D:  // ESC = : Down Line Loading of user characters (parse but ignore)
                     if (param_count == 1) param_build = input;
                     if (param_count == 2) param_build |= input<<8;
                     if ((param_count > 2) && (param_count == param_build+2))
@@ -466,9 +467,22 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     break;
 
                 case 0x43:  // ESC c : Set form length
-                    // Ignored in this version
-                    if (input != 0)
+                    if (param_count == 1 && input != 0)
+                    {
+                        margin_bottom = input * interline;
                         state = MPS_PRINTER_STATE_INITIAL;
+                    }
+                    else if (param_count > 1)
+                    {
+                        if (input > 0 && input < 23)
+                            margin_bottom = input * 216;
+
+                        state = MPS_PRINTER_STATE_INITIAL;
+                    }
+
+                    if (margin_bottom > MPS_PRINTER_PAGE_PRINTABLE_HEIGHT - MPS_PRINTER_HEAD_HEIGHT)
+                        margin_bottom = MPS_PRINTER_PAGE_PRINTABLE_HEIGHT - MPS_PRINTER_HEAD_HEIGHT;
+
                     break;
 
                 case 0x49:  // ESC i : Select print definition
@@ -527,7 +541,8 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     break;
 
                 default:
-                    DBGMSGV("undefined printer escape parameter sequence 0x%02X %d", esc_command, input);
+                    DBGMSGV("undefined CBM printer escape sequence 0x%02X parameter %d", esc_command, input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
             break;
 
@@ -597,11 +612,16 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                         state = MPS_PRINTER_STATE_INITIAL;
                     }
                     break;
+
+                default:
+                    DBGMSGV("undefined CBM printer command 0x%02X parameter %d", cbm_command, input);
+                    state = MPS_PRINTER_STATE_INITIAL;
             }
             break;
 
         default:
             DBGMSGV("undefined printer state %d", state);
+            state = MPS_PRINTER_STATE_INITIAL;
     }
 }
 
