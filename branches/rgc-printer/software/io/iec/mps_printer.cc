@@ -397,6 +397,7 @@ MpsPrinter::Init(void)
     nlq             = false;
     double_strike   = false;
     auto_lf         = false;
+    bim_mode        = false;
     state           = MPS_PRINTER_STATE_INITIAL;
     margin_left     = 0;
     margin_top      = 0;

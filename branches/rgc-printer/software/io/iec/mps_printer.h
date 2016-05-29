@@ -188,6 +188,7 @@ class MpsPrinter
         uint8_t bim_Y_density;  /* EPSON specific */
         uint8_t bim_Z_density;  /* EPSON specific */
         uint8_t bim_position;
+        bool bim_mode;
 
         /* =======  Current print attributes */
         bool reverse;           /* Negative characters */

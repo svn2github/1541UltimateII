@@ -198,6 +198,8 @@ MpsPrinter::IsCBMSpecial(uint8_t input)
 void
 MpsPrinter::CBM_Interpreter(uint8_t input)
 {
+    uint8_t cmd;
+
     switch(state)
     {
         case MPS_PRINTER_STATE_INITIAL:
@@ -234,11 +236,18 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
             /* =======  Select action if command char received */
             cbm_command = input;
             param_count = 0;
-            switch(input)
+
+            if (bim_mode && (input & 0x80))
+                cmd = 0;
+            else
+                cmd = input;
+
+            switch(cmd)
             {
                 case 0x08:   // BIT IMG: bitmap image
                     next_interline = spacing_y[MPS_PRINTER_SCRIPT_NORMAL][7];
-                    state = MPS_PRINTER_STATE_PARAM;
+                    //state = MPS_PRINTER_STATE_PARAM;
+                    bim_mode = true;
                     break;
 
                 case 0x09:   // TAB: horizontal tabulation
@@ -251,7 +260,6 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                                 head_x = htab[i];
                                 break;
                             }
-
                             i++;
                         }
                     }
@@ -272,10 +280,12 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
 
                 case 0x0E:   // EN ON: Double width printing on
                     double_width = true;
+                    //bim_mode = false;
                     break;
 
                 case 0x0F:   // EN OFF: Double width printing off
                     double_width = false;
+                    bim_mode = false;
                     break;
 
                 case 0x10:   // POS: Jump to horizontal position in number of chars
@@ -290,8 +300,11 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     reverse = true;
                     break;
 
-                case 0x13:   // DC3: Paging off
-                    //reverse = true;
+                case 0x1A:   // BIT IMG SUB, one byte
+                    if (bim_mode)
+                    {
+                        state = MPS_PRINTER_STATE_PARAM;
+                    }
                     break;
 
                 case 0x1B:   // ESC: ASCII code for escape
@@ -319,21 +332,29 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
                     break;
 
                 default:    // maybe a printable character
-                    if (IsPrintable(input))
+                    if (bim_mode && (input & 0x80))
                     {
-                        next_interline = interline;
-
-                        if (input == 0x22)
-                        quoted = quoted ? false : true;
-
-                        head_x += Char(Charset2Chargen(input));
-                        if (head_x > margin_right)
+                        head_x += CBMBim(input & 0x7F);
+                    }
+                    else
+                    {
+                        if (IsPrintable(input))
                         {
-                            head_y += interline;
-                            head_x  = 0;
+                            bim_mode = false;
+                            next_interline = interline;
 
-                            if (head_y > margin_bottom)
-                                FormFeed();
+                            if (input == 0x22)
+                            quoted = quoted ? false : true;
+
+                            head_x += Char(Charset2Chargen(input));
+                            if (head_x > margin_right)
+                            {
+                                head_y += interline;
+                                head_x  = 0;
+
+                                if (head_y > margin_bottom)
+                                    FormFeed();
+                            }
                         }
                     }
                     break;
@@ -551,51 +572,18 @@ MpsPrinter::CBM_Interpreter(uint8_t input)
             param_count++;
             switch(cbm_command)
             {
-                case 0x08:   // BIT IMG: bitmap image
-                    if (param_count == 1 && input == 26)
-                    {
-                        // use TAB code to handle BIT IMG SUB
-                        cbm_command = 0x09;
-                    }
-                    else
-                    {
-                        if (input & 0x80)
-                        {
-                            head_x += CBMBim(input & 0x7F);
-                        }
-                        else
-                        {
-                            // Was not graphic data, reinject to interpreter
-                            state = MPS_PRINTER_STATE_INITIAL;
-                            CBM_Interpreter(input);
-
-                        }
-                    }
-                    break;
-
-                case 0x09:   // BIT IMG SUB: bitmap image repeated
-                    if (param_count == 2)
+                case 0x1A:   // BIT IMG SUB: bitmap image repeated one byte
+                    if (param_count == 1)
                     {
                         // Get number of repeats
                         param_build = (input==0) ? 256 : input;
-                        bim_count = 0;
                     }
-                    else
+                    if (param_count == 2)
                     {
-                        if (input & 0x80 && bim_count < MPS_PRINTER_MAX_BIM_SUB)
-                        {
-                            bim_sub[bim_count++] = input & 0x7F;
-                        }
-                        else
-                        {
-                            // Was not graphic data, print bim and reinject to interpreter
-                            for (int i=0; i<param_build; i++)
-                                for (int j=0; j<bim_count; j++)
-                                    head_x += CBMBim(bim_sub[j]);
+                        for (int i=0; i<param_build; i++)
+                            head_x += CBMBim(input & 0x7F);
 
-                            state = MPS_PRINTER_STATE_INITIAL;
-                            CBM_Interpreter(input);
-                        }
+                        state = MPS_PRINTER_STATE_INITIAL;
                     }
                     break;
 
