@@ -137,7 +137,7 @@ SRCS_IEC = iec_code.iec
 SRCS_NANO = nano_minimal.nan
 
 PATH_INC =  $(addprefix -I, $(VPATH))
-OPTIONS  = -g -ffunction-sections -Os -DOS 
+OPTIONS  = -g -ffunction-sections -Os -DOS
 COPTIONS = $(OPTIONS) -std=c99
 CPPOPT   = $(OPTIONS) -fno-exceptions -fno-rtti -fno-threadsafe-statics
 LINK 	 = ./mb_app.lds
@@ -148,3 +148,10 @@ LIBS     =  -llwip -lc -lgcc
 LFLAGS   = --gc-sections 
 
 include ../common/rules.mk
+
+lodepng.o: lodepng.cc
+	@echo Compiling $(<F) optimized for speed
+	@$(CPP) $(CPPOPT) -O3 $(PATH_INC) -B. -c -o $(OUTPUT)/$(@F) $<
+	@$(CPP) -MM $(PATH_INC) $< >$(OUTPUT)/$(@F:.o=.d)
+
+

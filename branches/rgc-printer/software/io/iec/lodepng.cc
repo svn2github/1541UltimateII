@@ -2018,7 +2018,7 @@ static unsigned lodepng_deflatev(ucvector* out, const unsigned char* in, size_t 
                                  const LodePNGCompressSettings* settings)
 {
   unsigned error = 0;
-  size_t i, blocksize, numdeflateblocks;
+  register size_t i, blocksize, numdeflateblocks;
   size_t bp = 0; /*the bit pointer*/
   Hash hash;
 
@@ -5142,7 +5142,8 @@ static void filterScanline(unsigned char* out, const unsigned char* scanline, co
   switch(filterType)
   {
     case 0: /*None*/
-      for(i = 0; i != length; ++i) out[i] = scanline[i];
+      memcpy(out, scanline, length);
+      /*for(i = 0; i != length; ++i) out[i] = scanline[i];*/
       break;
     case 1: /*Sub*/
       for(i = 0; i != bytewidth; ++i) out[i] = scanline[i];

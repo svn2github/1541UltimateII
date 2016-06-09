@@ -95,6 +95,13 @@ MpsPrinter::MpsPrinter(char * filename)
     /* Initialise PNG convertor attributes */
     lodepng_state_init(&lodepng_state);
 
+    /* PNG compression settings */
+    lodepng_state.encoder.zlibsettings.btype        = 2;
+    lodepng_state.encoder.zlibsettings.use_lz77     = true;
+    lodepng_state.encoder.zlibsettings.windowsize   = 1024;
+    lodepng_state.encoder.zlibsettings.minmatch     = 3;
+    lodepng_state.encoder.zlibsettings.nicematch    = 128;
+
     /* Initialise color palette for memory bitmap and file output */
     lodepng_palette_clear(&lodepng_state.info_png.color);
     lodepng_palette_clear(&lodepng_state.info_raw);
@@ -605,7 +612,7 @@ MpsPrinter::Print(const char * filename)
         DBGMSG("Saving PNG failed\n");
     }
 #else
-    int fhd = open(filename, O_WRONLY|O_CREAT, 0666);
+    int fhd = open(filename, O_WRONLY|O_CREAT|O_TRUNC, 0666);
     if (fhd) {
         write(fhd, buffer, outsize);
         close(fhd);
