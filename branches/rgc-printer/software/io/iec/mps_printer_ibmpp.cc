@@ -373,6 +373,10 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                     state = MPS_PRINTER_STATE_ESC_PARAM;
                     break;
 
+                case 0x7E:  // ESC ~ : MPS-1230 extension
+                    state = MPS_PRINTER_STATE_ESC_PARAM;
+                    break;
+
                 default:
                     DBGMSGV("undefined IBMpp printer escape sequence %d", input);
                     state = MPS_PRINTER_STATE_INITIAL;
@@ -643,6 +647,62 @@ MpsPrinter::IBMpp_Interpreter(uint8_t input)
                 case 0x5F:  // ESC _ : Overline on/off
                     overline = input & 0x01 ? true : false;
                     state = MPS_PRINTER_STATE_INITIAL;
+                    break;
+
+                case 0x7E:  // ESC ~ : MPS-1230 extension
+                    if (param_count == 1) param_build = input;  /* Command number */
+                    if (param_count == 2)
+                    {
+                        switch (param_build)
+                        {
+                            case 2:         // ESX ~ 2 n : reverse ON/OFF
+                            case '2':
+                                reverse = (input & 1) ? true : false;
+                                break;
+
+                            case 3:         // ESX ~ 3 n : select pitch
+                            case '3':
+                                {
+                                    uint8_t new_step = input & 0x0F;
+                                    if (new_step < 7)
+                                        step = new_step;
+                                }
+                                break;
+
+                            case 4:         // ESX ~ 4 n : slashed zero ON/OFF
+                            case '4':
+                                // ignored
+                                break;
+
+                            case 5:         // ESX ~ 5 n : switch EPSON, Commodore, Proprinter, Graphics Printer
+                            case '5':
+                                switch (input)
+                                {
+                                    case 0:
+                                    case '0':
+                                        setInterpreter(MPS_PRINTER_INTERPRETER_EPSONFX80);
+                                        break;
+
+                                    case 1:
+                                    case '1':
+                                        setInterpreter(MPS_PRINTER_INTERPRETER_CBM);
+                                        break;
+
+                                    case 2:
+                                    case '2':
+                                        setInterpreter(MPS_PRINTER_INTERPRETER_IBMPP);
+                                        break;
+
+                                    case 3:
+                                    case '3':
+                                        setInterpreter(MPS_PRINTER_INTERPRETER_IBMGP);
+                                        break;
+                                }
+                                break;
+                        }
+
+                        state = MPS_PRINTER_STATE_INITIAL;
+                    }
                     break;
 
                 default:
