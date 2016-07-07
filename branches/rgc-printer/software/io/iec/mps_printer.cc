@@ -323,11 +323,10 @@ void
 MpsPrinter::Clear(void)
 {
     bzero (bitmap,MPS_PRINTER_BITMAP_SIZE);
-    head_x         = margin_left;
-    head_y         = margin_top;
-    next_interline = interline;
-    clean          = true;
-    quoted         = false;
+    head_x = margin_left;
+    head_y = margin_top;
+    clean  = true;
+    quoted = false;
 }
 
 /************************************************************************
@@ -394,6 +393,7 @@ MpsPrinter::Init(void)
     step            = 0;
     script          = MPS_PRINTER_SCRIPT_NORMAL;
     interline       = 36;
+    next_interline  = interline;
     charset_variant = 0;
     bim_density     = 0;
     italic          = false;
