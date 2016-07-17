@@ -56,12 +56,13 @@ struct t_cart {
 #define CART_FINAL3    9
 #define CART_SYSTEM3   10
 #define CART_IDEDOS    11
-#define CART_FINAL     12
+#define CART_KCS       12
+#define CART_FINAL     13
 
 const struct t_cart c_recognized_carts[] = {
     {  0, CART_NORMAL,    "Normal cartridge" },
     {  1, CART_ACTION,    "Action Replay" },
-    {  2, CART_NOT_IMPL,  "KCS Power Cartridge" },
+    {  2, CART_KCS,       "KCS Power Cartridge" },
     {  3, CART_FINAL3,    "Final Cartridge III" },
     {  4, CART_NOT_IMPL,  "Simons Basic" },
     {  5, CART_OCEAN,     "Ocean type 1 (256 and 128 Kb)" },
@@ -252,8 +253,12 @@ bool FileTypeCRT :: read_chip_packet(File *f)
         mem_addr += DWORD(size) * DWORD(bank);
 
     if(load == 0xA000) {
-        mem_addr += 512 * 1024; // interleaved mode (TODO: make it the same in hardware as well, currently only for EasyFlash)
-        load_at_a000 = true;
+        if (type_select == CART_KCS) {
+            mem_addr += 8192;
+        } else {
+            mem_addr += 512 * 1024; // interleaved mode (TODO: make it the same in hardware as well, currently only for EasyFlash)
+            load_at_a000 = true;
+        }
     }
     printf("Reading chip data for bank %d to $%4x with size $%4x to 0x%8x. %s\n", bank, load, size, mem_addr, (split)?"Split":"Contiguous");
     
@@ -370,6 +375,9 @@ void FileTypeCRT :: configure_cart(void)
             break;
         case CART_IDEDOS:
             C64_CARTRIDGE_TYPE = CART_TYPE_IDEDOS; // IDEDOS
+            break;
+        case CART_KCS:
+            C64_CARTRIDGE_TYPE = CART_TYPE_KCS; // KCS Power cartridge
             break;
         case CART_FINAL:
             C64_CARTRIDGE_TYPE = CART_TYPE_FINAL; // Final cartridge I

@@ -113,6 +113,7 @@ architecture gideon of all_carts_v4 is
     constant c_easy_flash   : std_logic_vector(4 downto 0) := "01100";
     constant c_epyx         : std_logic_vector(4 downto 0) := "01110";
     constant c_idedos       : std_logic_vector(4 downto 0) := "01111";
+    constant c_kcs          : std_logic_vector(4 downto 0) := "10000";
     constant c_fc           : std_logic_vector(4 downto 0) := "10001";
 
     constant c_ata_z        : std_logic_vector(7 downto 0) := X"7F";
@@ -201,6 +202,15 @@ begin
                 -- the software holds NMI down to prevent further triggers
                 -- so that's a good indicator when to finish pressing
                 unfreeze <= not mode_bits(2);
+
+            when c_kcs =>
+                if (io_read='1' or io_write='1') and io_addr(8) = '0' then -- DE00-DEFF
+                    mode_bits(1 downto 0) <= io_addr(1) & io_read; -- NMI, EXROM, GAME Cartridge disabled mode
+                end if;
+                if freeze_act='1' and freeze_act_d='0' then
+                    unfreeze <= '1';
+                    mode_bits(1 downto 0) <= "10";
+                end if;
 
             when c_fc =>
                 if (io_read='1' or io_write='1') then
@@ -412,12 +422,33 @@ begin
             if cart_en='1' or freeze_act='1' then -- cart_en only controls the register access, but otherwise there would be problems with the boot cartridge RUN
                 game_n  <= mode_bits(0) and not freeze_act; -- only pulls GAME
                 exrom_n <= mode_bits(1); -- Boots in 16K
-                nmi_n     <= mode_bits(2) and not (freeze_trig or freeze_act);
+                nmi_n   <= mode_bits(2) and not (freeze_trig or freeze_act);
             end if;
             serve_io1 <= '1';
             serve_io2 <= '1'; -- ROM visible
             serve_enable <= '1'; -- because of ROM is always in I/O!
 
+            mem_addr_i(13) <= slot_addr(13); -- 16K banks
+
+        when c_kcs =>
+            game_n  <= mode_bits(0);
+            exrom_n <= mode_bits(1); -- Boots in 16K
+            nmi_n   <= not (freeze_trig or freeze_act);
+            if io_range and slot_addr(8) = '1' then -- DFxx
+                if slot_addr(7) = '1' then
+                    io_reg_out  <= '1';
+                else
+                    allow_write <= '1';
+                    mem_addr_i(15 downto 7) <= (others => '0'); -- 128 byte RAM
+                    mem_ram <= '1';
+                end if;
+            end if;
+            serve_io1 <= '1';
+            serve_io2 <= '1';
+            serve_enable <= '1'; -- because of ROM is always in I/O!
+
+            io_rdata(7) <= mode_bits(1);
+            io_rdata(6) <= mode_bits(0);
             mem_addr_i(13) <= slot_addr(13); -- 16K banks
 
         when c_retro =>

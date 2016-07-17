@@ -83,6 +83,7 @@
 #define CART_TYPE_EASY_FLASH  0x0C
 #define CART_TYPE_EPYX        0x0E
 #define CART_TYPE_IDEDOS      0x0F
+#define CART_TYPE_KCS         0x10
 #define CART_TYPE_FINAL       0x11
 
 #define VIC_REG(x)   *((volatile BYTE *)(C64_MEMORY_BASE + 0xD000 + x))
