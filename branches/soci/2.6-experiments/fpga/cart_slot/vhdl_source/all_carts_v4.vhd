@@ -28,7 +28,7 @@ port (
     unfreeze        : out std_logic; -- indicates the freeze logic to switch back to non-freeze mode.
     
     cart_kill       : in  std_logic;
-    cart_logic      : in  std_logic_vector(3 downto 0);   -- 1 out of 16 logic emulations
+    cart_logic      : in  std_logic_vector(4 downto 0);   -- 1 out of 32 logic emulations
     
     slot_req        : in  t_slot_req;
     slot_resp       : out t_slot_resp;
@@ -98,21 +98,22 @@ architecture gideon of all_carts_v4 is
     signal ata_rewind       : std_logic;
     signal clock_increment  : std_logic;
 
-    constant c_none         : std_logic_vector(3 downto 0) := "0000";
-    constant c_8k           : std_logic_vector(3 downto 0) := "0001";
-    constant c_16k          : std_logic_vector(3 downto 0) := "0010";
-    constant c_16k_umax     : std_logic_vector(3 downto 0) := "0011";
-    constant c_fc3          : std_logic_vector(3 downto 0) := "0100";
-    constant c_ss5          : std_logic_vector(3 downto 0) := "0101";
-    constant c_retro        : std_logic_vector(3 downto 0) := "0110";
-    constant c_action       : std_logic_vector(3 downto 0) := "0111";
-    constant c_system3      : std_logic_vector(3 downto 0) := "1000";
-    constant c_domark       : std_logic_vector(3 downto 0) := "1001";
-    constant c_ocean128     : std_logic_vector(3 downto 0) := "1010";
-    constant c_ocean256     : std_logic_vector(3 downto 0) := "1011";
-    constant c_easy_flash   : std_logic_vector(3 downto 0) := "1100";
-    constant c_epyx         : std_logic_vector(3 downto 0) := "1110";
-    constant c_idedos       : std_logic_vector(3 downto 0) := "1111";
+    constant c_none         : std_logic_vector(4 downto 0) := "00000";
+    constant c_8k           : std_logic_vector(4 downto 0) := "00001";
+    constant c_16k          : std_logic_vector(4 downto 0) := "00010";
+    constant c_16k_umax     : std_logic_vector(4 downto 0) := "00011";
+    constant c_fc3          : std_logic_vector(4 downto 0) := "00100";
+    constant c_ss5          : std_logic_vector(4 downto 0) := "00101";
+    constant c_retro        : std_logic_vector(4 downto 0) := "00110";
+    constant c_action       : std_logic_vector(4 downto 0) := "00111";
+    constant c_system3      : std_logic_vector(4 downto 0) := "01000";
+    constant c_domark       : std_logic_vector(4 downto 0) := "01001";
+    constant c_ocean128     : std_logic_vector(4 downto 0) := "01010";
+    constant c_ocean256     : std_logic_vector(4 downto 0) := "01011";
+    constant c_easy_flash   : std_logic_vector(4 downto 0) := "01100";
+    constant c_epyx         : std_logic_vector(4 downto 0) := "01110";
+    constant c_idedos       : std_logic_vector(4 downto 0) := "01111";
+    constant c_fc           : std_logic_vector(4 downto 0) := "10001";
 
     constant c_ata_z        : std_logic_vector(7 downto 0) := X"7F";
 
@@ -200,6 +201,16 @@ begin
                 -- the software holds NMI down to prevent further triggers
                 -- so that's a good indicator when to finish pressing
                 unfreeze <= not mode_bits(2);
+
+            when c_fc =>
+                if (io_read='1' or io_write='1') then
+                    if io_addr(8) = '0' then -- DE00-DEFF
+                        mode_bits <= "111"; -- NMI, EXROM, GAME Cartridge disabled mode
+                    else -- DF00-DFFF
+                        mode_bits <= "100"; -- NMI, EXROM, GAME 16K GAME mode
+                    end if;
+                    unfreeze <= '1';
+                end if;
 
             when c_idedos =>
                 if cart_en = '1' and io_addr(8) = '0' then
@@ -397,7 +408,7 @@ begin
         exrom_n   <= '1';
         serve_rom <= '1';
         case cart_logic_d is
-        when c_fc3 =>
+        when c_fc3 | c_fc => -- same
             if cart_en='1' or freeze_act='1' then -- cart_en only controls the register access, but otherwise there would be problems with the boot cartridge RUN
                 game_n  <= mode_bits(0) and not freeze_act; -- only pulls GAME
                 exrom_n <= mode_bits(1); -- Boots in 16K

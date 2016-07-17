@@ -56,6 +56,7 @@ struct t_cart {
 #define CART_FINAL3    9
 #define CART_SYSTEM3   10
 #define CART_IDEDOS    11
+#define CART_FINAL     12
 
 const struct t_cart c_recognized_carts[] = {
     {  0, CART_NORMAL,    "Normal cartridge" },
@@ -71,7 +72,7 @@ const struct t_cart c_recognized_carts[] = {
     { 10, CART_EPYX,      "Epyx Fastload" },
     { 11, CART_NOT_IMPL,  "Westermann" },
     { 12, CART_NOT_IMPL,  "Rex" },
-    { 13, CART_NOT_IMPL,  "Final Cartridge I" },
+    { 13, CART_FINAL,     "Final Cartridge I" },
     { 14, CART_NOT_IMPL,  "Magic Formel" },
     { 15, CART_SYSTEM3,   "C64 Game System" },
     { 16, CART_NOT_IMPL,  "Warpspeed" },
@@ -280,31 +281,13 @@ bool FileTypeCRT :: read_chip_packet(File *f)
     return true;
 }
 
-/*
-    constant c_none         : X"0";
-    constant c_8k           : X"1";
-    constant c_16k          : X"2";
-    constant c_16k_umax     : X"3";
-    constant c_fc3          : X"4";
-    constant c_ss5          : X"5";
-    constant c_retro        : X"6";
-    constant c_action       : X"7";
-    constant c_system3      : X"8";
-    constant c_domark       : X"9";
-    constant c_ocean128     : X"A";
-    constant c_ocean256     : X"B";
-    constant c_easy_flash   : X"C";
-    constant c_epyx         : X"E";
-    constant c_idedos       : X"F";
-*/
-
 void FileTypeCRT :: configure_cart(void)
 {
     C64_MODE = C64_MODE_RESET;
     C64_REU_ENABLE = 0;
     C64_ETHERNET_ENABLE = 0;
 
-    C64_CARTRIDGE_TYPE = 0;
+    C64_CARTRIDGE_TYPE = CART_TYPE_NONE;
 
     DWORD len = total_read;
     if(!len)
@@ -329,26 +312,26 @@ void FileTypeCRT :: configure_cart(void)
     switch(type_select) {
         case CART_NORMAL:
             if ((crt_header[0x18] == 0) && (crt_header[0x19] == 1)) {
-                C64_CARTRIDGE_TYPE = 0x03; // Ultimax
+                C64_CARTRIDGE_TYPE = CART_TYPE_16K_UMAX; // Ultimax
             } else if ((crt_header[0x18] == 1) && (crt_header[0x19] == 1)) {
                 C64_CARTRIDGE_TYPE = 0x02; // 16K
             } else if ((crt_header[0x18] == 1) && (crt_header[0x19] == 0)) {
                 C64_CARTRIDGE_TYPE = 0x01; // 8K
             } else {
                 if (total_read > 8192)
-                    C64_CARTRIDGE_TYPE = 0x02; // 16K
+                    C64_CARTRIDGE_TYPE = CART_TYPE_16K; // 16K
                 else
-                    C64_CARTRIDGE_TYPE = 0x01; // 8K
+                    C64_CARTRIDGE_TYPE = CART_TYPE_8K; // 8K
             }
             break;
         case CART_ACTION:
-            C64_CARTRIDGE_TYPE = 0x07; // Action
+            C64_CARTRIDGE_TYPE = CART_TYPE_ACTION; // Action
             break;
         case CART_RETRO:
-            C64_CARTRIDGE_TYPE = 0x06; // Retro
+            C64_CARTRIDGE_TYPE = CART_TYPE_RETRO; // Retro
             break;
         case CART_DOMARK:
-            C64_CARTRIDGE_TYPE = 0x09; // Domark
+            C64_CARTRIDGE_TYPE = CART_TYPE_DOMARK; // Domark
             break;
         case CART_OCEAN:
 //            if ((total_read > 0x20000)&&(total_read <= 0x40000)) { // 16K banks
@@ -363,30 +346,33 @@ void FileTypeCRT :: configure_cart(void)
 //            }                
 //
             if (load_at_a000) {
-                C64_CARTRIDGE_TYPE = 0x0B; // Ocean 256K
+                C64_CARTRIDGE_TYPE = CART_TYPE_OCEAN256; // Ocean 256K
             } else {
 //                DWORD mem_base = ((DWORD)C64_CARTRIDGE_ROM_BASE) << 16;
 //                memcpy((void *)(mem_base + 256*1024), (void *)(mem_base + 0*1024), 256*1024);
-                C64_CARTRIDGE_TYPE = 0x0A; // Ocean 128K/512K
+                C64_CARTRIDGE_TYPE = CART_TYPE_OCEAN128; // Ocean 128K/512K
             }                
             break;
         case CART_EASYFLASH:
-            C64_CARTRIDGE_TYPE = 0x0C; // EasyFlash
+            C64_CARTRIDGE_TYPE = CART_TYPE_EASY_FLASH; // EasyFlash
             break;
         case CART_SUPERSNAP:
-            C64_CARTRIDGE_TYPE = 0x05; // Snappy
+            C64_CARTRIDGE_TYPE = CART_TYPE_SS5; // Snappy
             break;
         case CART_EPYX:
-            C64_CARTRIDGE_TYPE = 0x0E; // Epyx
+            C64_CARTRIDGE_TYPE = CART_TYPE_EPYX; // Epyx
             break;
         case CART_FINAL3:
-            C64_CARTRIDGE_TYPE = 0x04; // Final3
+            C64_CARTRIDGE_TYPE = CART_TYPE_FC3; // Final3
             break;
         case CART_SYSTEM3:
-            C64_CARTRIDGE_TYPE = 0x08; // System3
+            C64_CARTRIDGE_TYPE = CART_TYPE_SYSTEM3; // System3
             break;
         case CART_IDEDOS:
-            C64_CARTRIDGE_TYPE = 0x0F; // IDEDOS
+            C64_CARTRIDGE_TYPE = CART_TYPE_IDEDOS; // IDEDOS
+            break;
+        case CART_FINAL:
+            C64_CARTRIDGE_TYPE = CART_TYPE_FINAL; // Final cartridge I
             break;
         default:
             break;
