@@ -448,7 +448,7 @@ int main()
         program_flash(do_update1, do_update2, true);
     } else if(do_update1 || do_update2) {
         if(user_interface->popup("Update required. Continue?", BUTTON_YES | BUTTON_NO) == BUTTON_YES) {
-            program_flash(do_update1, do_update2, false);
+            program_flash(do_update1, do_update2, true);
         }
     } else {
         int response = user_interface->popup("Update NOT required. Force?", BUTTON_ALL | BUTTON_YES | BUTTON_NO);

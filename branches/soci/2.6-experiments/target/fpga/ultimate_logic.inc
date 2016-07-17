@@ -10,6 +10,7 @@ ALL_ULTIMATE_LOGIC := \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/busses/vhdl_source/slot_bus_pkg.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/busses/vhdl_source/io_to_dma_bridge.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/busses/vhdl_source/slot_to_io_bridge.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/ip/busses/vhdl_source/endianness_pkg.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/sync_fifo/vhdl_source/sync_fifo.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/srl_fifo/vhdl_source/srl_fifo.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/stack/vhdl_source/distributed_stack.vhd \

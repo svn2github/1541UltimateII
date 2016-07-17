@@ -15,6 +15,7 @@ generic (
     g_baud_rate     : natural := 115_200;
     g_timer_rate    : natural := 200_000;
     g_fpga_type     : natural := 0;
+    g_big_endian    : boolean := false;
     g_boot_rom      : boolean := false;
     g_video_overlay : boolean := false;
     g_icap          : boolean := false;
@@ -393,6 +394,8 @@ begin
     begin
         i_drive: entity work.c1541_drive
         generic map (
+            g_clock_freq    => g_clock_freq,
+            g_big_endian    => g_big_endian,
             g_cpu_tag       => c_tag_1541_cpu_1,
             g_floppy_tag    => c_tag_1541_floppy_1,
             g_audio_tag     => c_tag_1541_audio_1,
@@ -453,6 +456,8 @@ begin
     begin
         i_drive: entity work.c1541_drive
         generic map (
+            g_clock_freq    => g_clock_freq,
+            g_big_endian    => g_big_endian,
             g_cpu_tag       => c_tag_1541_cpu_2,
             g_floppy_tag    => c_tag_1541_floppy_2,
             g_audio_tag     => c_tag_1541_audio_2,
