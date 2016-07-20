@@ -47,6 +47,8 @@ end slot_master_v4;
 
 architecture gideon of slot_master_v4 is
     signal ba_c         : std_logic;
+    signal ba2_c        : std_logic;
+    signal reu_extra    : std_logic;
     signal rwn_c        : std_logic := '1';
     signal dma_n        : std_logic := '1';
     signal data_c       : std_logic_vector(7 downto 0) := (others => '1');
@@ -69,7 +71,7 @@ architecture gideon of slot_master_v4 is
     attribute keep : string;
     attribute keep of rwn_hist : signal is "true";
 
-    type   t_state is (idle, stopped, do_dma );
+    type   t_state is (idle, stopped, do_dma, extra );
     signal state     : t_state;
     
 --    attribute fsm_encoding : string;
@@ -112,12 +114,17 @@ begin
                 when others => stop := true;
             end case;
 
+            if phi2_tick='1' then
+                ba2_c <= ba_c;
+            end if;
+
             c64_stopped <= c64_stop and reu_dma_n and not cmd_if_freeze;
             dma_n <= '0';
             case state is
             when idle =>
                 dma_n <= '1';                
                 c64_stopped <= '0';
+                reu_extra <= '0';
                 dma_dack  <= dma_req.request and dma_req.read_writen; -- do not serve DMA requests when machine is not stopped
                 dma_rack  <= dma_req.request;
                 
@@ -129,13 +136,25 @@ begin
                 rwn_out_i <= '1';
                 addr_out(15 downto 14) <= "00"; -- always in a safe area
                 -- is the dma request active and are we at the right time?
-                if dma_req.request='1' and phi2_tick='1' and ba_c='1' then
+                if dma_req.request='1' and phi2_tick='1' and ba2_c='1' and reu_dma_n='0' and dma_req.read_writen='0' then
                     dma_rack  <= '1';
                     DATA_out  <= dma_req.data;
                     addr_out  <= std_logic_vector(dma_req.address);
                     rwn_out_i <= dma_req.read_writen;
+                    reu_extra <= not ba_c;
                     state     <= do_dma;
-                elsif reu_dma_n='1' and cmd_if_freeze='0' and c64_stop = '0' and do_io_event='1' then
+                elsif dma_req.request='1' and phi2_tick='1' and ba_c='1' then
+                    dma_rack  <= '1';
+                    DATA_out  <= dma_req.data;
+                    addr_out  <= std_logic_vector(dma_req.address);
+                    rwn_out_i <= dma_req.read_writen;
+                    reu_extra <= '0';
+                    state     <= do_dma;
+                elsif reu_extra='1' and phi2_tick='1' and ba_c='1' then
+                    rwn_out_i <= '1';
+                    reu_extra <= '0';
+                    state     <= extra;
+                elsif reu_dma_n='1' and cmd_if_freeze='0' and c64_stop = '0' and do_io_event='1' and reu_extra='0' then
                     state   <= idle;
                 end if;
           
@@ -145,6 +164,11 @@ begin
                     if rwn_out_i='1' then
                         dma_dack <= '1';
                     end if;
+                end if;
+
+            when extra =>
+                if phi2_recovered='0' then
+                    state <= stopped;
                 end if;
 
             when others =>
@@ -163,6 +187,7 @@ begin
             if reset='1' then
                 state           <= idle;
                 rwn_out_i       <= '1';
+                reu_extra       <= '0';
                 addr_out        <= (others => '1');
             end if;
         end if;
