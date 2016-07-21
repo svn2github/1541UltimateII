@@ -115,6 +115,7 @@ begin
                 when c_cart_cartridge_ram_base =>
                     io_resp.data <= std_logic_vector(g_ram_base(23 downto 16));
                 when c_cart_ata =>
+                    io_resp.data(0) <= status.ata_sel;
                     io_resp.data(4) <= status.ata_rst;
                     io_resp.data(5) <= status.ata_data;
                     io_resp.data(6) <= control_i.ata_drdy;

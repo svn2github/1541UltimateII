@@ -48,6 +48,7 @@ package cart_slot_pkg is
         c64_stopped    : std_logic;
         clock_detect   : std_logic;
         ata_data       : std_logic;
+        ata_sel        : std_logic;
         ata_cmd        : std_logic;
         ata_rst        : std_logic;
     end record;

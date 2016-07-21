@@ -25,8 +25,29 @@ extern "C" {
 ATAManager atamanager;
 
 BlockDevice * ATAManager :: select(void) {
-    if (!current && !children.is_empty()) current = children[children.get_elements() - 1];
+    if (!current && !children.is_empty()) {
+        int i = children.get_elements();
+        while (i--) {
+            if (children[i] != current2) {
+                current = children[i];
+                break;
+            }
+        }
+    }
     return current;
+}
+
+BlockDevice * ATAManager :: select2(void) {
+    if (!current2 && !children.is_empty()) {
+        int i = children.get_elements();
+        while (i--) {
+            if (children[i] != current) {
+                current2 = children[i];
+                break;
+            }
+        }
+    }
+    return current2;
 }
 
 void ATAManager :: attach(BlockDevice *b) {
@@ -37,5 +58,8 @@ void ATAManager :: detach(BlockDevice *b) {
     children.remove(b);
     if (current == b) {
         current = NULL;
+    }
+    if (current2 == b) {
+        current2 = NULL;
     }
 }

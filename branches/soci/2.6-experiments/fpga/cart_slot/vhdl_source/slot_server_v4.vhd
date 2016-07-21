@@ -454,6 +454,7 @@ begin
         ata_data        => status.ata_data,
         ata_cmd         => status.ata_cmd,
         ata_rst         => status.ata_rst,
+        ata_sel         => status.ata_sel,
 
         slot_req        => slot_req,
         slot_resp       => slot_resp_cart,

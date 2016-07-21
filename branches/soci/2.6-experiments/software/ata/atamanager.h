@@ -27,11 +27,14 @@ class ATAManager
     IndexedList<BlockDevice *>children;
 public:
     BlockDevice *current;
+    BlockDevice *current2;
     ATAManager(void) : children(4, NULL) {
         current = NULL;
+        current2 = NULL;
     }
 
     BlockDevice *select(void);
+    BlockDevice *select2(void);
     void attach(BlockDevice *b);
     void detach(BlockDevice *b);
 };

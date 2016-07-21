@@ -21,12 +21,14 @@
 
 #include "integer.h"
 #include "event.h"
+#include "blockdev.h"
 
 #define ATA_ERR 0x01
 #define ATA_DRQ 0x08
 #define ATA_DRDY 0x40
 #define ATA_BSY 0x80
 #define ATA_BUF 0x0F
+#define ATA_SEL 0x01
 #define ATA_RST 0x10
 #define ATA_DATA 0x20
 #define ATA_CMD 0x80
@@ -45,25 +47,30 @@
 
 class ATA
 {
-    volatile BYTE *buffer;
-    volatile BYTE *registers;
+    struct drive_s {
+        volatile BYTE *buffer;
+        volatile BYTE *registers;
+        struct {
+            int cylinders, heads, sectors, size;
+        } geometry;
+        struct {
+            int cylinders, heads, sectors;
+        } actual;
+        int lba;
+        int write_cache;
+        int error_lba;
+        BYTE write_error;
+        BYTE cmd;
+        BYTE count, pos, fill;
+        BlockDevice **device;
+    };
     volatile BYTE *hwregister;
-    BYTE cmd, count, pos, fill;
-    BYTE write_error;
-    int error_lba;
-    int lba;
-    int write_cache;
-    struct {
-        int cylinders, heads, sectors, size;
-    } geometry;
-    struct {
-        int cylinders, heads, sectors;
-    } actual;
-    void diag(void);
-    int get_lba(void);
-    void set_lba(int lba);
+    struct drive_s drives[2];
+    void diag(struct drive_s *);
+    int get_lba(struct drive_s *drv);
+    void set_lba(struct drive_s *drv, int lba);
     void set_string(volatile BYTE *b, char *s, int n);
-    void calc_geometry(int size);
+    void calc_geometry(struct drive_s *drv, int size);
 
 public:
     ATA(volatile BYTE *regs, volatile BYTE *buf, volatile BYTE *hwreg);

@@ -38,22 +38,22 @@ extern "C" {
 // ATA Drive Class
 //--------------------------------------------------------------
 
-void ATA :: diag(void)
+void ATA :: diag(struct drive_s *drv)
 {
     DWORD size = 0;
-    BlockDevice *device = atamanager.select();
+    BlockDevice *device = *drv->device;
     if (device) device->ioctl(GET_SECTOR_COUNT, &size);
-    calc_geometry((int)size);
+    calc_geometry(drv, (int)size);
 
-    cmd = 0;
-    registers[ATA_ERROR] = 1;
-    registers[ATA_COUNT] = 1;
-    registers[ATA_SECTOR] = 1;
-    registers[ATA_CYLINDER_LOW] = 0;
-    registers[ATA_CYLINDER_HIGH] = 0;
-    registers[ATA_HEAD] = 0;
-    write_cache = 0;
-    write_error = 0;
+    drv->cmd = 0;
+    drv->registers[ATA_ERROR] = device != NULL;
+    drv->registers[ATA_COUNT] = device != NULL;
+    drv->registers[ATA_SECTOR] = device != NULL;
+    drv->registers[ATA_CYLINDER_LOW] = 0;
+    drv->registers[ATA_CYLINDER_HIGH] = 0;
+    drv->registers[ATA_HEAD] = 0;
+    drv->write_cache = 0;
+    drv->write_error = 0;
 }
 
 void ATA :: set_string(volatile BYTE *b, char *s, int n)
@@ -66,51 +66,51 @@ void ATA :: set_string(volatile BYTE *b, char *s, int n)
     }
 }
 
-int ATA :: get_lba(void)
+int ATA :: get_lba(struct drive_s *drv)
 {
     int lba;
-    BYTE head = registers[ATA_HEAD];
-    int cylinder = (registers[ATA_CYLINDER_HIGH] << 8) | registers[ATA_CYLINDER_LOW];
-    BYTE sector = registers[ATA_SECTOR];
+    BYTE head = drv->registers[ATA_HEAD];
+    int cylinder = (drv->registers[ATA_CYLINDER_HIGH] << 8) | drv->registers[ATA_CYLINDER_LOW];
+    BYTE sector = drv->registers[ATA_SECTOR];
     if (head & 0x40) {
         head &= 15;
         lba = (head << 24) | (cylinder << 8) | sector;
     } else {
         head &= 15;
-        if (sector == 0 || sector > actual.sectors || head >= actual.heads ||
-                cylinder >= actual.cylinders) {
+        if (sector == 0 || sector > drv->actual.sectors || head >= drv->actual.heads ||
+                cylinder >= drv->actual.cylinders) {
             return -1;
         }
-        lba = (cylinder * actual.heads + head) * actual.sectors + sector - 1;
+        lba = (cylinder * drv->actual.heads + head) * drv->actual.sectors + sector - 1;
     }
-    return lba < geometry.size ? lba : -1;
+    return lba < drv->geometry.size ? lba : -1;
 }
 
-void ATA :: set_lba(int lba)
+void ATA :: set_lba(struct drive_s *drv, int lba)
 {
     int tmp;
-    BYTE head = registers[ATA_HEAD] & 0xf0;
+    BYTE head = drv->registers[ATA_HEAD] & 0xf0;
     if (head & 0x40) {
-        registers[ATA_SECTOR] = lba;
-        registers[ATA_CYLINDER_LOW] = lba >> 8;
-        registers[ATA_CYLINDER_HIGH] = lba >> 16;
-        registers[ATA_HEAD] = head | (lba >> 24);
+        drv->registers[ATA_SECTOR] = lba;
+        drv->registers[ATA_CYLINDER_LOW] = lba >> 8;
+        drv->registers[ATA_CYLINDER_HIGH] = lba >> 16;
+        drv->registers[ATA_HEAD] = head | (lba >> 24);
         return;
     } 
-    if (!actual.sectors || actual.heads) return;
-    tmp = lba / actual.sectors;
-    registers[ATA_SECTOR] = lba - tmp * actual.sectors + 1;
-    lba = tmp / actual.heads;
-    registers[ATA_HEAD] = head | (tmp - lba * actual.heads);
-    registers[ATA_CYLINDER_LOW] = lba;
-    registers[ATA_CYLINDER_HIGH] = lba >> 8;
+    if (!drv->actual.sectors || drv->actual.heads) return;
+    tmp = lba / drv->actual.sectors;
+    drv->registers[ATA_SECTOR] = lba - tmp * drv->actual.sectors + 1;
+    lba = tmp / drv->actual.heads;
+    drv->registers[ATA_HEAD] = head | (tmp - lba * drv->actual.heads);
+    drv->registers[ATA_CYLINDER_LOW] = lba;
+    drv->registers[ATA_CYLINDER_HIGH] = lba >> 8;
 }
 
-void ATA :: calc_geometry(int size)
+void ATA :: calc_geometry(struct drive_s *drv, int size)
 {
     int i, c, h, s;
 
-    geometry.size = size;
+    drv->geometry.size = size;
     if (size > 16514064) size = 16514064;
     h = 1; s = 1; i = 63; c = size;
     while (i > 1 && c > 1) {
@@ -138,20 +138,24 @@ void ATA :: calc_geometry(int size)
         if (s < 63) s++;
         c = size / (h * s);
     }
-    geometry.cylinders = c;
-    geometry.heads = h;
-    geometry.sectors = s;
-    actual.cylinders = c;
-    actual.heads = h;
-    actual.sectors = s;
+    drv->geometry.cylinders = c;
+    drv->geometry.heads = h;
+    drv->geometry.sectors = s;
+    drv->actual.cylinders = c;
+    drv->actual.heads = h;
+    drv->actual.sectors = s;
 }
 
 ATA :: ATA(volatile BYTE *regs, volatile BYTE *buf, volatile BYTE *hwreg)
 {
     hwregister = hwreg;
     *hwregister = ATA_BSY;
-    registers = regs;
-    buffer = buf;
+    drives[0].registers = regs;
+    drives[0].buffer = buf;
+    drives[0].device = &atamanager.current;
+    drives[1].registers = regs + 16;
+    drives[1].buffer = buf + 8192;
+    drives[1].device = &atamanager.current2;
     *hwregister = ATA_BSY | ATA_DRDY;
 }
 
@@ -167,6 +171,7 @@ void ATA :: poll(Event &e)
     volatile BYTE *buf;
     BYTE hw = *hwregister;
     BlockDevice *device;
+    struct drive_s *drv = &drives[hw & ATA_SEL];
 
     if (hw & ATA_RST) {
         if (hw & ATA_DRDY) return;
@@ -174,28 +179,31 @@ void ATA :: poll(Event &e)
         return;
     }
     if (hw & ATA_DRDY) {
-        diag();
+        atamanager.select();
+        diag(&drives[0]);
+        atamanager.select2();
+        diag(&drives[1]);
         *hwregister = 0;
         return;
     }
     if (hw & ATA_CMD) {
         *hwregister = ATA_BSY;
-        result = 0; error = 0; cmd = 0;
-        buf = buffer;
-        switch (registers[ATA_COMMAND]) {
+        result = 0; error = 0; drv->cmd = 0;
+        buf = drv->buffer;
+        switch (drv->registers[ATA_COMMAND]) {
         case 0x20: // READ SECTORS
         case 0x21:
-            lba = get_lba();
-            if (lba < 0) {
+            drv->lba = get_lba(drv);
+            if (drv->lba < 0) {
                 error = ATA_IDNF;
                 break;
             }
-            device = atamanager.current;
-            if (device && device->read((BYTE *)buf, lba, 1) == RES_OK) {
-                count = registers[ATA_COUNT] - 1;
-                cmd = 1;
-                fill = pos = 1;
-                lba++;
+            device = *drv->device;
+            if (device && device->read((BYTE *)buf, drv->lba, 1) == RES_OK) {
+                drv->count = drv->registers[ATA_COUNT] - 1;
+                drv->cmd = 1;
+                drv->fill = drv->pos = 1;
+                drv->lba++;
                 result = ATA_DRQ;
                 break;
             }
@@ -203,95 +211,98 @@ void ATA :: poll(Event &e)
             break;
         case 0x30: // WRITE SECTORS
         case 0x31:
-            lba = get_lba();
-            if (lba < 0) {
+            drv->lba = get_lba(drv);
+            if (drv->lba < 0) {
                 error = ATA_IDNF;
                 break;
             }
-            count = registers[ATA_COUNT];
-            fill = 0;
-            cmd = 3;
+            drv->count = drv->registers[ATA_COUNT];
+            drv->fill = 0;
+            drv->cmd = 3;
             result = ATA_DRQ;
             break;
         case 0x40: // VERIFY SECTORS
         case 0x41:
-            lba = get_lba();
-            if (lba < 0) {
+            drv->lba = get_lba(drv);
+            if (drv->lba < 0) {
                 error = ATA_IDNF;
                 break;
             }
-            count = registers[ATA_COUNT];
-            device = atamanager.current;
-            while (--count) {
-                if (device && device->read((BYTE *)buf, lba, 1) != RES_OK) {
-                    set_lba(lba);
+            drv->count = drv->registers[ATA_COUNT];
+            device = *drv->device;
+            while (--drv->count) {
+                if (device && device->read((BYTE *)buf, drv->lba, 1) != RES_OK) {
+                    set_lba(drv, drv->lba);
                     error = ATA_ABRT | ATA_UNC;
                     break;
                 }
-                lba++;
+                drv->lba++;
             }
             break;
         case 0x70: // SEEK
-            lba = get_lba();
-            if (lba < 0) {
+            drv->lba = get_lba(drv);
+            if (drv->lba < 0) {
                 error = ATA_IDNF;
                 break;
             }
             break;
         case 0x90: // EXECUTE DEVICE DIAGNOSTIC
-            diag();
+            atamanager.select();
+            diag(&drives[0]);
+            atamanager.select2();
+            diag(&drives[1]);
             *hwregister = 0;
             return;
         case 0x91: // INITIALIZE DEVICE PARAMETERS
-            actual.heads = (registers[ATA_HEAD] & 15) + 1;
-            actual.sectors = registers[ATA_COUNT];
-            if (actual.sectors < 1 || actual.sectors > 63) {
-                actual.cylinders = 0;
+            drv->actual.heads = (drv->registers[ATA_HEAD] & 15) + 1;
+            drv->actual.sectors = drv->registers[ATA_COUNT];
+            if (drv->actual.sectors < 1 || drv->actual.sectors > 63) {
+                drv->actual.cylinders = 0;
             } else {
-                int size = geometry.size;
+                int size = drv->geometry.size;
                 if (size > 16514064) size = 16514064;
-                size /= actual.heads * actual.sectors;
-                actual.cylinders = (size > 65535) ? 65535 : size;
+                size /= drv->actual.heads * drv->actual.sectors;
+                drv->actual.cylinders = (size > 65535) ? 65535 : size;
             }
-            if (actual.cylinders == 0) {
-                actual.heads = 0;
-                actual.sectors = 0;
+            if (drv->actual.cylinders == 0) {
+                drv->actual.heads = 0;
+                drv->actual.sectors = 0;
                 error = ATA_ABRT;
                 break;
             }
             break;
         case 0xe7: // FLUSH CACHE
-            if (write_error) {
-                error = write_error;
-                set_lba(error_lba);
-                write_error = 0;
+            if (drv->write_error) {
+                error = drv->write_error;
+                set_lba(drv, drv->error_lba);
+                drv->write_error = 0;
             }
             break;
         case 0xec: // IDENTIFY DEVICE
             memset((void *)buf, 0, 512);
             putw(0, 0x0040);
-            putw(1, geometry.cylinders);
-            putw(3, geometry.heads);
-            putw(6, geometry.sectors);
-            putw(7, geometry.size >> 16);
-            putw(8, geometry.size);
+            putw(1, drv->geometry.cylinders);
+            putw(3, drv->geometry.heads);
+            putw(6, drv->geometry.sectors);
+            putw(7, drv->geometry.size >> 16);
+            putw(8, drv->geometry.size);
             set_string(buf + 20, ATA_SERIAL_NUMBER, 20);
             putw(21, ATA_BUF + 1);
             set_string(buf + 46, ATA_REVISION, 8);
-            set_string(buf + 54, "ATA-SD " ATA_COPYRIGHT, 40);
+            set_string(buf + 54, "ATA-BR " ATA_COPYRIGHT, 40);
             putw(49, 1 << 9); /* LBA support */
-            if (actual.sectors) {
+            if (drv->actual.sectors) {
                 putw(53, 1 << 0);
-                putw(54, actual.cylinders);
-                putw(55, actual.heads);
-                putw(56, actual.sectors);
-                i = actual.cylinders * actual.heads * actual.sectors;
-                if (i > geometry.size) i = geometry.size;
+                putw(54, drv->actual.cylinders);
+                putw(55, drv->actual.heads);
+                putw(56, drv->actual.sectors);
+                i = drv->actual.cylinders * drv->actual.heads * drv->actual.sectors;
+                if (i > drv->geometry.size) i = drv->geometry.size;
                 putw(57, i);
                 putw(58, i >> 16);
             }
-            putw(60, geometry.size);
-            putw(61, geometry.size >> 16);
+            putw(60, drv->geometry.size);
+            putw(61, drv->geometry.size >> 16);
             i  = 1 << 5;  /* write cache */
             i |= 1 << 12; /* write buffer */
             i |= 1 << 13; /* read buffer */
@@ -300,7 +311,7 @@ void ATA :: poll(Event &e)
             i |= 1 << 14;
             putw(83, i);
             putw(84, 1 << 14);
-            i  = write_cache << 5; /* write cache */
+            i  = drv->write_cache << 5; /* write cache */
             i |= 1 << 12; /* write buffer */
             i |= 1 << 13; /* read buffer */
             putw(85, i);
@@ -317,18 +328,18 @@ void ATA :: poll(Event &e)
             result = ATA_DRQ;
             break;
         case 0xef: // SET FEATURES
-            switch (registers[ATA_FEATURE]) {
+            switch (drv->registers[ATA_FEATURE]) {
             case 0x02: // SET ENABLE WRITE CACHE
-                write_cache = 1;
+                drv->write_cache = 1;
                 break;
             case 0x03: // SET TRANSFER MODE
-                i = registers[ATA_COUNT];
+                i = drv->registers[ATA_COUNT];
                 if (i > 1 && i != 8) {
                     error = ATA_ABRT;
                 }
                 break;
             case 0x82: // SET DISABLE WRITE CACHE
-                write_cache = 0;
+                drv->write_cache = 0;
                 break;
             default:
                 error = ATA_ABRT;
@@ -339,66 +350,66 @@ void ATA :: poll(Event &e)
             error = ATA_ABRT;
             break;
         }
-        registers[ATA_ERROR] = error;
+        drv->registers[ATA_ERROR] = error;
         *hwregister = error ? ATA_ERR : result;
         return;
     }
-    if (cmd == 1 && count && fill < ATA_BUF && !((hw & ATA_DATA) && fill > 1)) {// READ SECTORS
-        device = atamanager.current;
-        if (device && device->read((BYTE *)buffer + (pos << 9), lba, 1) == RES_OK) {
-            count--;
-            fill++;
-            lba++;
-            pos = (pos + 1) & ATA_BUF;
-        } else cmd = 2;
+    if (drv->cmd == 1 && drv->count && drv->fill < ATA_BUF && !((hw & ATA_DATA) && drv->fill > 1)) {// READ SECTORS
+        device = *drv->device;
+        if (device && device->read((BYTE *)drv->buffer + (drv->pos << 9), drv->lba, 1) == RES_OK) {
+            drv->count--;
+            drv->fill++;
+            drv->lba++;
+            drv->pos = (drv->pos + 1) & ATA_BUF;
+        } else drv->cmd = 2;
     }
     if (hw & ATA_DATA) {
         *hwregister = ATA_BSY;
         result = 0; error = 0;
-        switch (cmd) {
+        switch (drv->cmd) {
         case 1: // READ SECTORS
         case 2:
-            if (--fill) {
+            if (--drv->fill) {
                 result = ATA_DRQ;
                 break;
             }
-            if (cmd == 2) {
-                set_lba(lba);
+            if (drv->cmd == 2) {
+                set_lba(drv, drv->lba);
                 error = ATA_ABRT | ATA_UNC;
             }
-            cmd = 0;
+            drv->cmd = 0;
             break;
         case 3: // WRITE SECTORS
-            fill++;
-            if (--count) {
+            drv->fill++;
+            if (--drv->count) {
                 result = ATA_DRQ;
-                if (fill <= ATA_BUF) break;
+                if (drv->fill <= ATA_BUF) break;
             } else {
-                cmd = 0;
-                if (write_cache) {
-                    registers[ATA_ERROR] = 0;
+                drv->cmd = 0;
+                if (drv->write_cache) {
+                    drv->registers[ATA_ERROR] = 0;
                     *hwregister = 0; // Early response, assume all will go fine...
                 }
             }
-            device = atamanager.current;
-            if (device && device->write((BYTE *)buffer, lba, fill) == RES_OK) {
-                lba += fill; fill = 0;
-                if (!count && write_cache) return; // And all went fine
+            device = *drv->device;
+            if (device && device->write((BYTE *)drv->buffer, drv->lba, drv->fill) == RES_OK) {
+                drv->lba += drv->fill; drv->fill = 0;
+                if (!drv->count && drv->write_cache) return; // And all went fine
                 break;
             }
-            cmd = 0;
+            drv->cmd = 0;
             error = ATA_ABRT | ATA_UNC;
-            if (write_cache) { // Too late for error...
-                write_error = error;
-                error_lba = lba;
+            if (drv->write_cache) { // Too late for error...
+                drv->write_error = error;
+                drv->error_lba = drv->lba;
                 return; 
             }
-            set_lba(lba);
+            set_lba(drv, drv->lba);
             break;
         default:
             break;
         }
-        registers[ATA_ERROR] = error;
+        drv->registers[ATA_ERROR] = error;
         *hwregister = error ? ATA_ERR : result;
         return;
     }

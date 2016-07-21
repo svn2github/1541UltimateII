@@ -40,6 +40,7 @@ port (
     ata_bsy         : in  std_logic;
     ata_data        : out std_logic;
     ata_cmd         : out std_logic;
+    ata_sel         : out std_logic;
     ata_rst         : out std_logic;
     serve_enable    : out std_logic; -- enables fetching bus address PHI2=1
     serve_rom       : out std_logic; -- ROML or ROMH
@@ -77,6 +78,7 @@ architecture gideon of all_carts_v4 is
 
     signal ata_bsy_i    : std_logic;
     signal ata_cmd_i    : std_logic;
+    signal ata_sel_i    : std_logic;
     signal ata_data_i   : std_logic;
     signal ata_select   : std_logic;
     signal ata_head     : std_logic_vector(3 downto 0);
@@ -153,6 +155,8 @@ begin
                 ata_select   <= '0';
                 ata_head     <= (others => '0');
                 ata_rst_i    <= '0';
+                ata_cmd_i    <= '0';
+                ata_sel_i    <= '0';
                 ata_bsy_i    <= '1';
                 clock_write  <= '0';
             elsif cart_en = '0' then
@@ -228,7 +232,7 @@ begin
                         when X"2" =>
                             case io_addr(3 downto 0) is
                                 when X"0" =>
-                                    if (io_write = '1' or io_read = '1') and ata_select = '0' and ata_drq = '1' then
+                                    if (io_write = '1' or io_read = '1') and ata_drq = '1' then
                                         ata_increment <= '1';
                                     end if;
                                 when X"6" => 
@@ -237,9 +241,10 @@ begin
                                         ata_head <= io_wdata(3 downto 0);
                                     end if;
                                 when X"7" => 
-                                    if io_write ='1' and ata_select = '0' then
+                                    if io_write ='1' then
                                         ata_rewind <= '1';
                                         ata_cmd_i <= '1';
+                                        ata_sel_i <= ata_select;
                                         ata_bsy_i <= '1';
                                     end if;
                                 when X"E" => 
@@ -247,6 +252,7 @@ begin
                                         ata_rst2_i <= io_wdata(2);
                                         if io_wdata(2) = '1' then
                                             ata_rst_i <= '1';
+                                            ata_sel_i <= '0';
                                             ata_select <= '0';
                                             ata_head <= (others => '0');
                                         end if;
@@ -587,10 +593,10 @@ begin
                         when others =>
                             null;
                     end case;
-                    if slot_addr(7 downto 4) = X"2" and ata_select = '1' then
-                        io_rdata <= c_ata_z;
-                        io_reg_out <= cart_en;
-                    end if;
+                    --if slot_addr(7 downto 4) = X"2" and ata_select = '1' then
+                    --    io_rdata <= c_ata_z;
+                    --    io_reg_out <= cart_en;
+                    --end if;
                 elsif freeze_act = '1' and mode_bits(1 downto 0) = "10" and slot_addr(14 downto 3) = X"FFF" and slot_addr(1) = '1' then
                     mem_addr_i(2 downto 1) <= "10"; -- FFFC
                 end if;
@@ -678,6 +684,7 @@ begin
 
     ata_data <= ata_data_i;
     ata_cmd <= ata_cmd_i;
+    ata_sel <= ata_sel_i;
     ata_rst <= ata_rst_i;
 
     slot_resp.data <= io_rdata;
