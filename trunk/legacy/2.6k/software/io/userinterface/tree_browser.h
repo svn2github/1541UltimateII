@@ -10,6 +10,7 @@ public:
     char quick_seek_string[MAX_SEARCH_LEN];
     int  quick_seek_length;
 
+    mstring   title;
     Screen   *window;
     Keyboard *keyb;
     Path 	 *path;
