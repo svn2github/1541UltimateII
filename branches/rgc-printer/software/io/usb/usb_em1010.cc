@@ -10,15 +10,23 @@ extern "C" {
 
 __inline uint32_t cpu_to_32le(uint32_t a)
 {
-    uint32_t m1, m2;
+#ifdef NIOS
+	return a;
+#else
+	uint32_t m1, m2;
     m1 = (a & 0x00FF0000) >> 8;
     m2 = (a & 0x0000FF00) << 8;
     return (a >> 24) | (a << 24) | m1 | m2;
+#endif
 }
 
 __inline uint16_t le16_to_cpu(uint16_t h)
 {
+#ifdef NIOS
+	return h;
+#else // assume big endian
     return (h >> 8) | (h << 8);
+#endif
 }
 
 /*********************************************************************
@@ -148,9 +156,20 @@ void UsbEm1010Driver :: install(UsbDevice *dev)
 
 }
 
+void UsbEm1010Driver :: disable(void)
+{
+	host->free_input_pipe(irq_transaction);
+	host->free_input_pipe(bulk_transaction);
+    printf("EM1010 Disabled.\n");
+    if (netstack) {
+    	netstack->stop();
+    	netstack = NULL;
+    }
+}
+
 void UsbEm1010Driver :: deinstall(UsbDevice *dev)
 {
-    host->free_input_pipe(irq_transaction);
+	printf("EM1010 Deinstalled\n");
 }
 
 bool UsbEm1010Driver :: read_mac_address()

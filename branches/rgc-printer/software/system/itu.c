@@ -52,8 +52,14 @@ void wait_ms(int time)
     }
 }
 
-uint16_t getMsTimer() {
-	return ioRead16(__ITU_MS_TIMER);
+uint16_t getMsTimer()
+{
+	uint16_t result1, result2;
+	do {
+		result1 = ((uint16_t)ioRead8(ITU_MS_TIMER_LO)) | (((uint16_t)ioRead8(ITU_MS_TIMER_HI)) << 8);
+		result2 = ((uint16_t)ioRead8(ITU_MS_TIMER_LO)) | (((uint16_t)ioRead8(ITU_MS_TIMER_HI)) << 8);
+	} while(result1 != result2);
+	return result1;
 }
 /*
 -------------------------------------------------------------------------------
@@ -236,6 +242,19 @@ void uart_put_byte(BYTE c)
     UART_DATA = c;
 }
 */
+
+void (*custom_outbyte)(int c) = 0;
+
+void outbyte(int c)
+{
+    if (custom_outbyte) {
+        custom_outbyte(c);
+    } else {
+        // Wait for space in FIFO
+        while (ioRead8(UART_FLAGS) & UART_TxFifoFull);
+        ioWrite8(UART_DATA, c);
+    }
+}
 
 #ifdef RUNS_ON_PC
 #include <stdio.h>

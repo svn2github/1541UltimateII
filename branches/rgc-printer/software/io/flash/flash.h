@@ -2,19 +2,12 @@
 #define FLASH_H
 
 #include "integer.h"
+#include "indexed_list.h"
 
 #define FLASH_ID_BOOTFPGA   0x00
 #define FLASH_ID_BOOTAPP    0x01
 #define FLASH_ID_APPL       0x02
 //#define FLASH_ID_CUSTOMFPGA 0x03
-
-#define FLASH_ID_ROM1541    0x10
-#define FLASH_ID_ROM1541C   0x11
-#define FLASH_ID_ROM1541II  0x12
-
-#define FLASH_ID_SOUNDS     0x20
-#define FLASH_ID_CHARS      0x21
-#define FLASH_ID_SIDCRT     0x22
 
 #define FLASH_ID_AR5PAL     0x40
 #define FLASH_ID_AR6PAL     0x41
@@ -28,6 +21,9 @@
 #define FLASH_ID_TAR_PAL    0x49
 #define FLASH_ID_TAR_NTSC   0x4A
 #define FLASH_ID_KCS	    0x4B
+#define FLASH_ID_CUSTOM_ROM 0x4C
+#define FLASH_ID_KERNAL_ROM 0x4D
+
 #define FLASH_ID_ALL_ROMS   0x5F
 
 #define FLASH_ID_CONFIG     0xFE
@@ -41,11 +37,17 @@ typedef struct t_flash_address {
 	int  max_length;
 } _flash_address;
 
-
 class Flash
 {
 public:    
-    Flash() { }
+	static IndexedList<Flash*>* getSupportedFlashTypes() {
+    	static IndexedList<Flash*> flash_types(4, NULL);
+    	return &flash_types;
+    }
+
+	Flash() {
+		getSupportedFlashTypes()->append(this);
+	}
     virtual ~Flash() { }
 
 	virtual Flash *tester(void) { return NULL; }
@@ -65,16 +67,10 @@ public:
     virtual int  get_sector_size(int addr) { return 1; }
     virtual bool erase_sector(int sector) { return false; }
 	virtual int  page_to_sector(int page) { return -1; }
-    virtual bool read_page(int page, void *buffer) {
-        int *dest = (int *)buffer;
-        for(int i=0;i<64;i++)
-            *(dest++) = -1;
-        return false;
-    }
+    virtual bool read_page(int page, void *buffer) { return false; }
 	virtual bool write_page(int page, void *buffer) { return false; }
 	virtual bool need_erase(void) { return false; }
-	
-//    virtual int  write_image(int id, void *buffer) { return 0; }
+	int  write_image(int id, uint8_t *buffer, int length);
 
 	// Interface for configuration
     virtual int  get_config_page_size(void) { return 512; }

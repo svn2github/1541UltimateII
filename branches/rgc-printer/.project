@@ -6,40 +6,29 @@
 	</projects>
 	<buildSpec>
 		<buildCommand>
-			<name>net.sourceforge.veditor.simulateBuilder</name>
+			<name>org.python.pydev.PyDevBuilder</name>
 			<arguments>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.CleanCommand</key>
-					<value>echo &apos;Clean&apos;</value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.buildOrder</key>
-					<value>0</value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.command</key>
-					<value>echo &apos;No Build Configuration Specified&apos;</value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.enable</key>
-					<value>true</value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.name</key>
-					<value>Default</value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.parser</key>
-					<value></value>
-				</dictionary>
-				<dictionary>
-					<key>net.sourceforge.veditor.simulateBuilder.00000000Default.workFolder</key>
-					<value></value>
-				</dictionary>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.cdt.managedbuilder.core.genmakebuilder</name>
+			<triggers>clean,full,incremental,</triggers>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.cdt.managedbuilder.core.ScannerConfigBuilder</name>
+			<triggers>full,incremental,</triggers>
+			<arguments>
 			</arguments>
 		</buildCommand>
 	</buildSpec>
 	<natures>
 		<nature>net.sourceforge.veditor.HdlNature</nature>
+		<nature>org.eclipse.cdt.core.cnature</nature>
+		<nature>org.eclipse.cdt.core.ccnature</nature>
+		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
+		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
+		<nature>org.python.pydev.pythonNature</nature>
 	</natures>
 </projectDescription>

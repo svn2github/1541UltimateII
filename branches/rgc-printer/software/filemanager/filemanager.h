@@ -5,10 +5,10 @@
 #include "file_system.h"
 #include "filesystem_root.h"
 #include "cached_tree_node.h"
-#include "globals.h"
 #include "observer.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "embedded_fs.h"
 
 void set_extension(char *buffer, char *ext, int buf_size);
 void get_extension(const char *name, char *ext);
@@ -40,6 +40,7 @@ public:
 };
 
 typedef enum  {
+	eRefreshDirectory,  // Contents of directory have changed
 	eNodeAdded,			// New Node
 	eNodeRemoved,       // Node no longer exists (deleted)
 	eNodeMediaRemoved,  // Node lost all its children

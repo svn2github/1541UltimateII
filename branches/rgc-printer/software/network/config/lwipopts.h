@@ -199,13 +199,13 @@
  * MEMP_NUM_TCP_PCB: the number of simultaneously active TCP connections.
  * (requires the LWIP_TCP option)
  */
-#define MEMP_NUM_TCP_PCB                5
+#define MEMP_NUM_TCP_PCB                30
 
 /**
  * MEMP_NUM_TCP_PCB_LISTEN: the number of listening TCP connections.
  * (requires the LWIP_TCP option)
  */
-#define MEMP_NUM_TCP_PCB_LISTEN         8
+#define MEMP_NUM_TCP_PCB_LISTEN         15
 
 /**
  * MEMP_NUM_TCP_SEG: the number of simultaneously queued TCP segments.
@@ -737,7 +737,7 @@
  * LWIP_NETIF_STATUS_CALLBACK==1: Support a callback function whenever an interface
  * changes its up/down status (i.e., due to DHCP IP acquistion)
  */
-#define LWIP_NETIF_STATUS_CALLBACK      0
+#define LWIP_NETIF_STATUS_CALLBACK      1
 
 /**
  * LWIP_NETIF_LINK_CALLBACK==1: Support a callback function from an interface

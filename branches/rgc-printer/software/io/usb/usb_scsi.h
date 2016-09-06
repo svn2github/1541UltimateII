@@ -11,7 +11,7 @@
 
 struct t_cbw
 {
-    uint32_t signature;
+    uint8_t  signature[4];
     uint32_t tag;
     uint32_t data_length;
     uint8_t  flags;
@@ -40,6 +40,7 @@ class UsbScsiDriver : public UsbDriver
 	int max_lun;
 	int current_lun;
     int get_max_lun(UsbDevice *dev);
+    int mass_storage_reset(void);
 
     uint32_t      id;
     struct t_pipe bulk_in;

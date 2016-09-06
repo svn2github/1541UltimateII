@@ -28,6 +28,8 @@
 #define HW_IEC_RX_CTRL         *((volatile uint8_t *)(HW_IEC_REGS + 0x7)) // read
 #define HW_IEC_RX_DATA_32      *((volatile uint32_t *)(HW_IEC_REGS + 0x8)) // read+clear
 #define HW_IEC_IRQ             *((volatile uint8_t *)(HW_IEC_REGS + 0xC)) // write=ack, bit0=irq enable
+#define HW_IEC_UP_FIFO_COUNT_LO  *((volatile uint8_t *)(HW_IEC_REGS + 0xE))
+#define HW_IEC_UP_FIFO_COUNT_HI  *((volatile uint8_t *)(HW_IEC_REGS + 0xF))
 
 #define IEC_CMD_GO_WARP     0x57
 #define IEC_CMD_GO_MASTER   0x4D
@@ -60,6 +62,9 @@ class IecInterface : public SubSystem, ObjectWithMenu,  ConfigurableObject
     Path *path;
     Path *cmd_path;
     UserInterface *cmd_ui;
+    SemaphoreHandle_t ulticopyBusy;
+    SemaphoreHandle_t ulticopyMutex;
+    QueueHandle_t queueGuiToIec;
 
 	int last_addr;
     int last_printer_addr;
@@ -73,8 +78,12 @@ class IecInterface : public SubSystem, ObjectWithMenu,  ConfigurableObject
     IecPrinter *channel_printer;
     int current_channel;
     int warp_drive;
+    uint8_t warp_return_code;
+
+    void poll(void);
     void test_master(int);
     void start_warp(int);
+    void start_warp_iec(void);
     void get_warp_data(void);
     void get_warp_error(void);
     void save_copied_disk(void);
@@ -97,7 +106,6 @@ public:
     int executeCommand(SubsysCommand *cmd); // from SubSystem
     const char *identify(void) { return "IEC"; }
 
-    int poll(void);
     int fetch_task_items(Path *path, IndexedList<Action *> &list);
     void effectuate_settings(void); // from ConfigurableObject
     int get_last_error(char *); // writes string into buffer

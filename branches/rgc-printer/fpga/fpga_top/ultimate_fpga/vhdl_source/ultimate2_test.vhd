@@ -137,6 +137,11 @@ begin
     CAS_READ    <= pulses(17);
     CAS_WRITE   <= pulses(18);
     CAS_MOTOR   <= pulses(19);
+
+    IEC_DATA    <= '0' when pulses(20) = '1' else 'Z';
+    IEC_CLOCK   <= '0' when pulses(21) = '1' else 'Z';
+    IEC_ATN     <= '0' when pulses(22) = '1' else 'Z';
+    IEC_SRQ_IN  <= '0' when pulses(23) = '1' else 'Z';
     
     -- local bus side
     LB_ADDR     <= (others => 'Z');
@@ -153,16 +158,10 @@ begin
     -- PWM outputs (for audio)
     PWM_OUT     <= "ZZ";
 
-    -- IEC bus
-    IEC_ATN     <= 'Z';
-    IEC_DATA    <= 'Z';
-    IEC_CLOCK   <= 'Z';
-    IEC_SRQ_IN  <= 'Z';
-    
-    DISK_ACTn   <= '0';
-    CART_LEDn   <= '1';
-    SDACT_LEDn  <= '0';
-    MOTOR_LEDn  <= '1';
+    DISK_ACTn   <= not counter(20);
+    CART_LEDn   <= not counter(21);
+    SDACT_LEDn  <= not counter(22);
+    MOTOR_LEDn  <= not counter(23);
     
     -- Debug UART
     UART_TXD    <= '1';

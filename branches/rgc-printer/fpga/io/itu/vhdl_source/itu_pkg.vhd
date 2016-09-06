@@ -14,7 +14,7 @@ package itu_pkg is
     constant c_itu_irq_timer_en  : unsigned(3 downto 0) := X"7";
     constant c_itu_irq_timer_hi  : unsigned(3 downto 0) := X"8"; -- big endian word
     constant c_itu_irq_timer_lo  : unsigned(3 downto 0) := X"9";
-    constant c_itu_hw_flags      : unsigned(3 downto 0) := X"A";
+    constant c_itu_buttons       : unsigned(3 downto 0) := X"A";
 	constant c_itu_fpga_version  : unsigned(3 downto 0) := X"B";
     constant c_itu_capabilities0 : unsigned(3 downto 0) := X"C";
     constant c_itu_capabilities1 : unsigned(3 downto 0) := X"D";

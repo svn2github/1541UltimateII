@@ -1,10 +1,9 @@
 #include "userinterface.h"
 #include <stdio.h>
 
-#ifndef _NO_FILE_ACCESS
+#ifndef NO_FILE_ACCESS
 #include "FreeRTOS.h"
 #include "task.h"
-
 #include "tree_browser.h"
 #include "tree_browser_state.h"
 #include "path.h"
@@ -29,7 +28,7 @@ struct t_cfg_definition user_if_config[] = {
     { CFG_TYPE_END,           CFG_TYPE_END,    "", "", NULL, 0, 0, 0 }         
 };
 
-UserInterface :: UserInterface()
+UserInterface :: UserInterface(const char *title) : title(title)
 {
     initialized = false;
     focus = -1;
@@ -81,16 +80,16 @@ void UserInterface :: set_screen(Screen *s)
 
 void UserInterface :: run(void)
 {
-#ifndef _NO_FILE_ACCESS
+#ifndef NO_FILE_ACCESS
     while(1) {
 		switch(state) {
 			case ui_idle:
 				if (!host->hasButton()) {
 					appear();
-					state = ui_host_permanent;
+					// state = ui_host_permanent;
 				} else if (host->buttonPush()) {
 					appear();
-					state = ui_host_owned;
+					// state = ui_host_owned;
 				}
 				break;
 
@@ -149,6 +148,11 @@ void UserInterface :: appear(void)
 		//printf("Going to (re)init objects %d.\n", i);
 		ui_objects[i]->init(screen, keyboard);
 	}
+	if (!host->hasButton()) {
+		state = ui_host_permanent;
+	} else {
+		state = ui_host_owned;
+	}
 }
 
 void UserInterface :: release_host(void)
@@ -180,22 +184,18 @@ void UserInterface :: set_screen_title()
 {
     int width = screen->get_size_x();
     int height = screen->get_size_y();
-	static char title[48];
+
+    int len = title.length()-4;
+    int hpos = (width - len) / 2;
 
     screen->clear();
-    sprintf(title, "\eA**** 1541 Ultimate %s (1%b) ****\eO", APPL_VERSION, getFpgaVersion());
-    int len = strlen(title)-4;
-    int hpos = (width - len) / 2;
-    printf("Title = %s (%d)\n", title, len);
     screen->move_cursor(hpos, 0);
-    screen->output(title);
+    screen->output(title.c_str());
     screen->move_cursor(0, 1);
 	screen->repeat('\002', width);
     screen->move_cursor(0, height-1);
 	screen->scroll_mode(false);
 	screen->repeat('\002', width);
-    screen->move_cursor(width-8,height-1);
-	screen->output("\eAF3=Help\eO");
 }
     
 /* Blocking variants of our simple objects follow: */
@@ -255,7 +255,7 @@ void UserInterface :: run_editor(const char *text_buf)
 
 int UserInterface :: enterSelection()
 {
-#ifndef _NO_FILE_ACCESS
+#ifndef NO_FILE_ACCESS
 	// because we know that the command can only be caused by a TreeBrowser, we can safely cast
 	TreeBrowser *browser = (TreeBrowser *)(get_root_object());
 	if (browser) {

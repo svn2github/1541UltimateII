@@ -12,11 +12,14 @@ PARSE_IEC = $(TOOLS)/parse_iec.py
 PARSE_NANO = $(TOOLS)/parse_nano.py
 CHECKSUM = $(TOOLS)/checksum
 
-BOOT = ../2nd_boot
-LWIPLIB = ../mb_lwip/result/liblwip.a
-
 # Configuration
-CROSS     ?= mb-
+CROSS        ?= mb-
+ELFTYPE      ?= elf32-microblaze
+ARCHITECTURE ?= MicroBlaze
+
+BOOT = ../2nd_boot
+LWIPLIB = ../$(subst -,_,$(CROSS))lwip/result/liblwip.a
+
 
 # External inputs
 ROMS = ../../../roms
@@ -46,6 +49,8 @@ VPATH     = $(PATH_SW)/application \
 			$(PATH_SW)/io/c64 \
 			$(PATH_SW)/io/rtc \
 			$(PATH_SW)/io/usb \
+			$(PATH_SW)/io/i2c \
+			$(PATH_SW)/io/mdio \
 			$(PATH_SW)/io/tape \
 			$(PATH_SW)/io/icap \
 			$(PATH_SW)/io/sd_card \
@@ -63,7 +68,6 @@ VPATH     = $(PATH_SW)/application \
 			$(PATH_SW)/chan_fat/full \
 			$(PATH_SW)/FreeRTOS/Source \
 			$(PATH_SW)/FreeRTOS/Source/include \
-			$(PATH_SW)/FreeRTOS/Source/portable/microblaze \
 			$(PATH_SW)/FreeRTOS/Source/MemMang \
 			$(PATH_SW)/lwip-1.4.1/src/include \
 			$(PATH_SW)/lwip-1.4.1/src/include/ipv4 \
@@ -75,7 +79,7 @@ INCLUDES =  $(wildcard $(addsuffix /*.h, $(VPATH)))
 
 XILINX ?= C:/Xilinx/13.2
 PLATFORM ?= nt
-TOOLCHAIN = $(XILINX)/ISE_DS/EDK/gnu/microblaze/$(PLATFORM)
+TOOLCHAIN = $(XILINX_EDK)/gnu/microblaze/$(PLATFORM)
 XILINXBIN = $(XILINX)/ISE_DS/ISE/bin/$(PLATFORM)
 
 PATH_INC =  $(addprefix -I, $(VPATH))

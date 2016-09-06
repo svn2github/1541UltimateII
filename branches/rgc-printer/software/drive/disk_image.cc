@@ -19,10 +19,14 @@ extern "C" {
 
 __inline uint32_t le_to_cpu_32(uint32_t a)
 {
-    uint32_t m1, m2;
+#ifdef NIOS
+	return a;
+#else
+	uint32_t m1, m2;
     m1 = (a & 0x00FF0000) >> 8;
     m2 = (a & 0x0000FF00) << 8;
     return (a >> 24) | (a << 24) | m1 | m2;
+#endif
 }
 
 #define cpu_to_le_32 le_to_cpu_32
@@ -701,7 +705,6 @@ bool GcrImage :: test(void)
 BinImage :: BinImage(const char *name)
 {
 	bin_data = new uint8_t[C1541_MAX_D64_LEN];
-
 	int sects;
 	uint8_t *track = bin_data;
 	for(int i=0;i<C1541_MAXTRACKS;i++) {
@@ -760,12 +763,18 @@ int BinImage :: get_absolute_sector(int track, int sector)
 
 uint8_t * BinImage :: get_sector_pointer(int track, int sector)
 {
-/*
-    int sec = get_absolute_sector(track, sector);
-    if(sec < 0)
-        return NULL;
-    return &bin_data[256*sec];
-*/
+	if (track < 1) {
+		return 0;
+	}
+	if (sector < 0) {
+		return 0;
+	}
+	if (track >= C1541_MAXTRACKS) {
+		return 0;
+	}
+	if (sector >= track_sectors[track-1]) {
+		return 0;
+	}
     return track_start[track-1] + (sector << 8);
 }
 
@@ -953,5 +962,63 @@ void BinImage :: get_sensible_name(char *buffer)
     fs->dir_close(r);    
 }
 
-
 BinImage static_bin_image("Static Binary Image"); // for general use
+
+int ImageCreator :: S_createD64(SubsysCommand *cmd)
+{
+	int doG64 = cmd->mode;
+	char buffer[64];
+
+	buffer[0] = 0;
+	int res;
+	BinImage *bin;
+	GcrImage *gcr;
+	FileManager *fm = FileManager :: getFileManager();
+	bool save_result;
+
+	res = cmd->user_interface->string_box("Give name for new disk..", buffer, 22);
+	if(res > 0) {
+		fix_filename(buffer);
+	    bin = &static_bin_image; //new BinImage;
+		if(bin) {
+    		bin->format(buffer);
+			set_extension(buffer, (doG64)?(char *)".g64":(char *)".d64", 32);
+            File *f = 0;
+            FRESULT fres = fm -> fopen(cmd->path.c_str(), buffer, FA_WRITE | FA_CREATE_NEW, &f);
+			if(f) {
+                if(doG64) {
+                    gcr = new GcrImage;
+                    if(gcr) {
+                        bin->num_tracks = 40;
+                        cmd->user_interface->show_progress("Converting..", 120);
+                        gcr->convert_disk_bin2gcr(bin, cmd->user_interface);
+                        cmd->user_interface->update_progress("Saving...", 0);
+                        save_result = gcr->save(f, false, cmd->user_interface); // create image, without alignment, we are aligned already
+                        cmd->user_interface->hide_progress();
+                    } else {
+                        printf("No memory to create gcr image.\n");
+                        return -3;
+                    }
+                } else {
+                    cmd->user_interface->show_progress("Creating D64..", 35);
+                    save_result = bin->save(f, cmd->user_interface);
+                    cmd->user_interface->hide_progress();
+                }
+        		printf("Result of save: %d.\n", save_result);
+                fm->fclose(f);
+			} else {
+				printf("Can't create file '%s'\n", buffer);
+				cmd->user_interface->popup(FileSystem :: get_error_string(fres), BUTTON_OK);
+				return -2;
+			}
+			// delete bin;
+		} else {
+			printf("No memory to create bin.\n");
+			return -1;
+		}
+	}
+	return 0;
+}
+
+// instantiate so that we exist
+ImageCreator image_creator;

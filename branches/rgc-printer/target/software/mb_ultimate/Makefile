@@ -1,8 +1,9 @@
 
 include ../common/environment.mk
 
-PRJ      =  ultimate
-FINAL    =  $(RESULT)/$(PRJ).bin $(OUTPUT)/$(PRJ).sim
+PRJ        =  ultimate
+FINAL      =  $(RESULT)/$(PRJ).bin
+LINKMETHOD = ld
 
 SRCS_C   =	mbstart_rtos.c \
 			itu.c \
@@ -19,7 +20,8 @@ SRCS_C   =	mbstart_rtos.c \
             ff2.c \
             ccsbcs.c \
             ffsyscall.c \
-            time.c
+            time.c \
+            sid_coeff.c
 
 SRCS_CC	 =  small_printf.cc \
             stream.cc \
@@ -71,7 +73,6 @@ SRCS_CC	 =  small_printf.cc \
 			ui_elements.cc \
             user_file_interaction.cc \
 			editor.cc \
-			ui_stream.cc \
 			tree_browser.cc \
 			tree_browser_state.cc \
 			stream_menu.cc \
@@ -86,11 +87,11 @@ SRCS_CC	 =  small_printf.cc \
 			filetype_reu.cc \
 			filetype_crt.cc \
 			filetype_sid.cc \
+			filetype_bin.cc \
             host_stream.cc \
             keyboard_vt100.cc \
             screen_vt100.cc \
 			usb_base.cc \
-			usb2.cc \
 			usb_device.cc \
 			usb_scsi.cc \
 			usb_hub.cc \
@@ -105,6 +106,7 @@ SRCS_CC	 =  small_printf.cc \
 			command_intf.cc \
 			dos.cc \
 			network_target.cc \
+			uci_commands.cc \
 			iec.cc \
 			mps_printer.cc \
 			mps_printer_cbm.cc \
@@ -125,6 +127,9 @@ SRCS_CC	 =  small_printf.cc \
 ####			sampler.cc \
 ####			copper.cc \
 
+VPATH += $(PATH_SW)/FreeRTOS/Source/portable/microblaze
+VPATH += $(PATH_SW)/portable/microblaze
+
 
 SRCS_ASM =  mb_crt0.s portasm.s
 
@@ -136,17 +141,16 @@ SRCS_IEC = iec_code.iec
 
 SRCS_NANO = nano_minimal.nan
 
+# TOOLCHAIN ?= $(XILINX_EDK)/gnu/microblaze/lin64
+
 PATH_INC =  $(addprefix -I, $(VPATH))
-OPTIONS  = -g -ffunction-sections -Os -DOS
+OPTIONS  = -g -ffunction-sections -nostartfiles -Os -DOS -DDEVELOPER
 COPTIONS = $(OPTIONS) -std=c99
 CPPOPT   = $(OPTIONS) -fno-exceptions -fno-rtti -fno-threadsafe-statics
 LINK 	 = ./mb_app.lds
-LLIB     =  -L ../mb_lwip/result \
-            -L $(TOOLCHAIN)/microblaze-xilinx-elf/lib \
-            -L $(TOOLCHAIN)/lib/gcc/microblaze-xilinx-elf/4.1.2
-LIBS     =  -llwip -lc -lgcc 
+LIBS     = ../mb_lwip/result/liblwip.a
 LFLAGS   = --gc-sections 
-
+	
 include ../common/rules.mk
 
 lodepng.o: lodepng.cc

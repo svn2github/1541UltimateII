@@ -34,14 +34,18 @@
 
 __inline uint32_t le_to_cpu_32(uint32_t a)
 {
-    uint32_t m1, m2;
+#ifdef NIOS
+	return a;
+#else
+	uint32_t m1, m2;
     m1 = (a & 0x00FF0000) >> 8;
     m2 = (a & 0x0000FF00) << 8;
     return (a >> 24) | (a << 24) | m1 | m2;
+#endif
 }
 
 // tester instance
-FactoryRegistrator<BrowsableDirEntry *, FileType *> tester_tap(Globals :: getFileTypeFactory(), FileTypeTap :: test_type);
+FactoryRegistrator<BrowsableDirEntry *, FileType *> tester_tap(FileType :: getFileTypeFactory(), FileTypeTap :: test_type);
 
 #define TAPFILE_RUN 0x3101
 #define TAPFILE_START 0x3110

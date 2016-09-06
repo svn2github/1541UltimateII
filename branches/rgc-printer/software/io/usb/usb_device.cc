@@ -9,7 +9,11 @@ extern "C" {
 
 __inline uint16_t le16_to_cpu(uint16_t h)
 {
+#ifdef NIOS
+	return h;
+#else // assume big endian
     return (h >> 8) | (h << 8);
+#endif
 }
 
 char *unicode_to_ascii(uint8_t *in, char *out, int maxlen)
@@ -55,7 +59,8 @@ uint8_t c_unstall_pipe[]			   = { 0x02, 0x01, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00
 
 UsbDevice :: UsbDevice(UsbBase *u, int speed)
 {
-    parent = NULL;
+	disabled = false;
+	parent = NULL;
     parent_port = 0;
     driver = NULL;
     host = u;
@@ -91,6 +96,14 @@ UsbDevice :: ~UsbDevice()
 }
 
 
+void UsbDevice :: disable()
+{
+	disabled = true;
+	if (driver) {
+		driver->disable();
+	}
+}
+
 void UsbDevice :: get_string(int index, char *dest, int len)
 {
     if(!index) {
@@ -113,7 +126,7 @@ bool UsbDevice :: get_device_descriptor()
 {
     int i;
 
-	i = host->control_exchange(&control_pipe, c_get_device_descriptor, 8, &device_descr, 18);
+    i = host->control_exchange(&control_pipe, c_get_device_descriptor, 8, &device_descr, 18);
 	if(i != 18) {
 		printf("Error: Expected 18 bytes on device descriptor.. got %d.\n", i);
 		if (i == 8) {
@@ -163,17 +176,20 @@ bool UsbDevice :: get_configuration(uint8_t index)
     c_get_configuration[2] = index;
     c_get_configuration[6] = 9;
     c_get_configuration[7] = 0;
-    uint8_t buf[12];
+    uint8_t buf[16];
+    memset(buf, 0xAA, 16);
 
     config_descriptor = NULL;
     int len_descr = host->control_exchange(&control_pipe, c_get_configuration, 8, buf, 9);
+    dump_hex(buf, 16);
+
     if(len_descr < 0)
     	return false;
     
     if ((buf[0] == 9) && (buf[1] == DESCR_CONFIGURATION)) {
         len_descr = int(buf[2]) + 256*int(buf[3]);
         printf("Total configuration length: %d\n", len_descr);
-    	config_descriptor = new uint8_t[len_descr];
+    	config_descriptor = new uint8_t[len_descr + 8];
     	if (!config_descriptor)
     		return false;
     } else {
@@ -200,6 +216,8 @@ bool UsbDevice :: get_configuration(uint8_t index)
     i = 0;
     ep = 0;
     num_interfaces = 0;
+    uint8_t bConfigurationValue = config_descriptor[5];
+    printf("bConfigurationValue = %b\n", bConfigurationValue);
 
     while(i < len_descr) {
         len = (int)pnt[0];
@@ -214,7 +232,7 @@ bool UsbDevice :: get_configuration(uint8_t index)
         		break;
         	case DESCR_INTERFACE:
         		if(len == 9) {
-        			printf("Interface descriptor #%d, with %d endpoints. Class = %d:%d\n", pnt[2], pnt[4], pnt[5], pnt[6]);
+        			printf("Interface descriptor #%b:%b, with %d endpoints. Class = %d:%d\n", pnt[2], pnt[3], pnt[4], pnt[5], pnt[6]);
         			if (pnt[4] != 0) {
         				interfaces[num_interfaces] = (struct t_interface_descriptor *)pnt;
         				num_interfaces++;
@@ -295,7 +313,7 @@ struct t_device_configuration *UsbDevice :: get_device_config()
 
 void UsbDevice :: set_configuration(uint8_t config)
 {
-//    printf("Setting configuration %d.\n", config);
+    printf("Setting configuration %d.\n", config);
     c_set_configuration[2] = config;
 
     uint8_t dummy_buffer[8];
@@ -303,20 +321,22 @@ void UsbDevice :: set_configuration(uint8_t config)
 //    printf("Set Configuration result:%d\n", i);
 }
 
-void UsbDevice :: set_interface(uint8_t interface)
+void UsbDevice :: set_interface(uint8_t interface, uint8_t alt)
 {
-//    printf("Setting interface %d.\n", interface);
+    printf("Setting interface %d to alternate setting %d.\n", interface, alt);
+    c_set_interface[2] = alt;
     c_set_interface[4] = interface;
 
     uint8_t dummy_buffer[8];
-    int i = host->control_exchange(&control_pipe, c_set_configuration, 8, dummy_buffer, 0);
+    int i = host->control_exchange(&control_pipe, c_set_interface, 8, dummy_buffer, 0);
 //    printf("Set Configuration result:%d\n", i);
+    interface_number = alt;
 }
 
-void UsbDevice :: unstall_pipe(uint8_t ep)
+int UsbDevice :: unstall_pipe(uint8_t ep)
 {
 	c_unstall_pipe[4] = ep;
-	host->control_exchange(&control_pipe, c_unstall_pipe, 8, NULL, 0);
+	return host->control_exchange(&control_pipe, c_unstall_pipe, 8, NULL, 0);
 }
 
 bool UsbDevice :: init(int address)

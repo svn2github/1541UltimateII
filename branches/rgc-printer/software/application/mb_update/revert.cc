@@ -290,7 +290,7 @@ bool program_flash(bool do_update1, bool do_update2, bool do_roms)
 	return true;
 }
     
-int main()
+extern "C" void ultimate_main(void *)
 {
 	char time_buffer[32];
 	uint8_t byte_buffer[32];
@@ -309,20 +309,23 @@ int main()
     } else {
     	host = new HostStream(stream);
     }
-
     printf("host = %p\n", host);
-	host->take_ownership(NULL);
 
+/*
+	host->take_ownership(NULL);
     screen = host->getScreen();
     screen->clear();
-    screen->output("\033\021   **** 1541 Ultimate II Reverter ****\n\033\037"); // \020 = alpha \021 = beta
+    screen->output(""); // \020 = alpha \021 = beta
     screen->repeat('\002', 40);
+*/
 
-    user_interface = new UserInterface;
+    user_interface = new UserInterface("\033\021   **** 1541 Ultimate II Reverter ****\n\033\037");
     user_interface->init(host);
-    user_interface->set_screen(screen);
+    user_interface->appear();
+    screen = host->getScreen();
+    screen->move_cursor(0, 2);
 
-	console_print(screen, "%s ", rtc.get_long_date(time_buffer, 32));
+    console_print(screen, "%s ", rtc.get_long_date(time_buffer, 32));
 	console_print(screen, "%s\n", rtc.get_time_string(time_buffer, 32));
 
 	if(!flash) {

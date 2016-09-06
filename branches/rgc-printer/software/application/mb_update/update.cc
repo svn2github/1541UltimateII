@@ -31,9 +31,6 @@ extern uint8_t _mb_boot_700_b_end;
 extern uint8_t _mb_boot2_bin_start;
 extern uint8_t _mb_boot2_bin_end;
 
-extern uint8_t _1541_ii_bin_start;
-extern uint8_t _1541_bin_start;
-extern uint8_t _1541c_bin_start;
 extern uint8_t _ar5ntsc_bin_start;
 extern uint8_t _ar5pal_bin_start;
 extern uint8_t _ar6pal_bin_start;
@@ -41,16 +38,12 @@ extern uint8_t _epyx_bin_start;
 extern uint8_t _final3_bin_start;
 extern uint8_t _rr38ntsc_bin_start;
 extern uint8_t _rr38pal_bin_start;
-extern uint8_t _sounds_bin_start;
 extern uint8_t _ss5ntsc_bin_start;
 extern uint8_t _ss5pal_bin_start;
 extern uint8_t _tar_ntsc_bin_start;
 extern uint8_t _tar_pal_bin_start;
 extern uint8_t _kcs_bin_start;
 
-extern uint8_t _1541_ii_bin_end;
-extern uint8_t _1541_bin_end;
-extern uint8_t _1541c_bin_end;
 extern uint8_t _ar5ntsc_bin_end;
 extern uint8_t _ar5pal_bin_end;
 extern uint8_t _ar6pal_bin_end;
@@ -58,7 +51,6 @@ extern uint8_t _epyx_bin_end;
 extern uint8_t _final3_bin_end;
 extern uint8_t _rr38ntsc_bin_end;
 extern uint8_t _rr38pal_bin_end;
-extern uint8_t _sounds_bin_end;
 extern uint8_t _ss5ntsc_bin_end;
 extern uint8_t _ss5pal_bin_end;
 extern uint8_t _tar_ntsc_bin_end;
@@ -136,6 +128,11 @@ bool flash_buffer(int id, void *buffer, void *buf_end, char *version, char *desc
     int length = (int)buf_end - (int)buffer;
 	t_flash_address image_address;
 	flash->get_image_addresses(id, &image_address);
+	if (image_address.id == FLASH_ID_LIST_END) {
+		console_print(screen, "ROM image obsolete: No target: %s\n", descr);
+		return true;
+	}
+
 	int address = image_address.start;
     int page_size = flash->get_page_size();
     int page = address / page_size;
@@ -144,6 +141,7 @@ bool flash_buffer(int id, void *buffer, void *buf_end, char *version, char *desc
 
     //console_print(screen, "            \n");
     if(image_address.has_header) {
+        // dump_hex(buffer, 256);
         console_print(screen, "Flashing  \033\027%s\033\037,\n  version \033\027%s\033\037..\n", descr, version);
         uint8_t *bin = new uint8_t[length+16];
         uint32_t *pul;
@@ -154,6 +152,7 @@ bool flash_buffer(int id, void *buffer, void *buf_end, char *version, char *desc
         memcpy(bin+16, buffer, length);
         length+=16;
         p = (char *)bin;
+        // dump_hex(p, 256);
     }
     else {
         console_print(screen, "Flashing  \033\027%s\033\037..\n", descr);
@@ -258,14 +257,10 @@ bool program_flash(bool do_update1, bool do_update2, bool do_roms)
             copy_rom(roms, FLASH_ID_AR5PAL,    &min, &max, &_ar5pal_bin_start,   &_ar5pal_bin_end   );
             copy_rom(roms, FLASH_ID_AR6PAL,    &min, &max, &_ar6pal_bin_start,   &_ar6pal_bin_end   );
             copy_rom(roms, FLASH_ID_FINAL3,    &min, &max, &_final3_bin_start,   &_final3_bin_end   );
-            copy_rom(roms, FLASH_ID_SOUNDS,    &min, &max, &_sounds_bin_start,   &_sounds_bin_end   );
             copy_rom(roms, FLASH_ID_EPYX,      &min, &max, &_epyx_bin_start,     &_epyx_bin_end     );
-            copy_rom(roms, FLASH_ID_ROM1541,   &min, &max, &_1541_bin_start,     &_1541_bin_end     );
             copy_rom(roms, FLASH_ID_RR38PAL,   &min, &max, &_rr38pal_bin_start,  &_rr38pal_bin_end  );
             copy_rom(roms, FLASH_ID_SS5PAL,    &min, &max, &_ss5pal_bin_start,   &_ss5pal_bin_end   );
             copy_rom(roms, FLASH_ID_AR5NTSC,   &min, &max, &_ar5ntsc_bin_start,  &_ar5ntsc_bin_end  );
-            copy_rom(roms, FLASH_ID_ROM1541C,  &min, &max, &_1541c_bin_start,    &_1541c_bin_end    );
-            copy_rom(roms, FLASH_ID_ROM1541II, &min, &max, &_1541_ii_bin_start,  &_1541_ii_bin_end  );
             copy_rom(roms, FLASH_ID_RR38NTSC,  &min, &max, &_rr38ntsc_bin_start, &_rr38ntsc_bin_end );
             copy_rom(roms, FLASH_ID_SS5NTSC,   &min, &max, &_ss5ntsc_bin_start,  &_ss5ntsc_bin_end  );
             copy_rom(roms, FLASH_ID_TAR_PAL,   &min, &max, &_tar_pal_bin_start,  &_tar_pal_bin_end  );
@@ -278,14 +273,10 @@ bool program_flash(bool do_update1, bool do_update2, bool do_roms)
     	    flash_buffer(FLASH_ID_AR5PAL,    &_ar5pal_bin_start,   &_ar5pal_bin_end,   "", "ar5pal");
     	    flash_buffer(FLASH_ID_AR6PAL,    &_ar6pal_bin_start,   &_ar6pal_bin_end,   "", "ar6pal");
     	    flash_buffer(FLASH_ID_FINAL3,    &_final3_bin_start,   &_final3_bin_end,   "", "final3");
-    	    flash_buffer(FLASH_ID_SOUNDS,    &_sounds_bin_start,   &_sounds_bin_end,   "", "sounds");
     	    flash_buffer(FLASH_ID_EPYX,      &_epyx_bin_start,     &_epyx_bin_end,     "", "epyx");
-    	    flash_buffer(FLASH_ID_ROM1541,   &_1541_bin_start,     &_1541_bin_end,     "", "1541");
     	    flash_buffer(FLASH_ID_RR38PAL,   &_rr38pal_bin_start,  &_rr38pal_bin_end,  "", "rr38pal");
     	    flash_buffer(FLASH_ID_SS5PAL,    &_ss5pal_bin_start,   &_ss5pal_bin_end,   "", "ss5pal");
     	    flash_buffer(FLASH_ID_AR5NTSC,   &_ar5ntsc_bin_start,  &_ar5ntsc_bin_end,  "", "ar5ntsc");
-    	    flash_buffer(FLASH_ID_ROM1541C,  &_1541c_bin_start,    &_1541c_bin_end,    "", "1541c");
-    	    flash_buffer(FLASH_ID_ROM1541II, &_1541_ii_bin_start,  &_1541_ii_bin_end,  "", "1541-ii");
     	    flash_buffer(FLASH_ID_RR38NTSC,  &_rr38ntsc_bin_start, &_rr38ntsc_bin_end, "", "rr38ntsc");
     	    flash_buffer(FLASH_ID_SS5NTSC,   &_ss5ntsc_bin_start,  &_ss5ntsc_bin_end,  "", "ss5ntsc");
     	    flash_buffer(FLASH_ID_TAR_PAL,   &_tar_pal_bin_start,  &_tar_pal_bin_end,  "", "tar_pal");
@@ -300,7 +291,7 @@ bool program_flash(bool do_update1, bool do_update2, bool do_roms)
 	return true;
 }
     
-int main()
+extern "C" void ultimate_main(void *)
 {
 	char time_buffer[32];
 	uint8_t byte_buffer[32];
@@ -308,6 +299,12 @@ int main()
 	printf("*** Ultimate Updater ***\n\n");
 	flash = get_flash();
     printf("Flash = %p. Capabilities = %8x\n", flash, getFpgaCapabilities());
+
+/*
+    static uint8_t bufje[65536];
+    flash->read_linear_addr(0, 65536, bufje);
+    dump_hex_relative(bufje, 65536);
+*/
 
     GenericHost *host = 0;
     Stream *stream = new Stream_UART;
@@ -321,18 +318,14 @@ int main()
     }
     
     printf("host = %p\n", host);
-	host->take_ownership(NULL);
+
+    user_interface = new UserInterface("\033\021   **** 1541 Ultimate II Updater ****\n\033\037");
+    user_interface->init(host);
+    user_interface->appear();
 
     screen = host->getScreen();
-    screen->clear();
-    screen->output("\033\021   **** 1541 Ultimate II Updater ****\n\033\037"); // \020 = alpha \021 = beta
-    screen->repeat('\002', 40);
-
-    user_interface = new UserInterface;
-    user_interface->init(host);
-    user_interface->set_screen(screen);
-
-	console_print(screen, "%s ", rtc.get_long_date(time_buffer, 32));
+    screen->move_cursor(0, 2);
+    console_print(screen, "%s ", rtc.get_long_date(time_buffer, 32));
 	console_print(screen, "%s\n", rtc.get_time_string(time_buffer, 32));
 
 	if(!flash) {
@@ -388,17 +381,15 @@ int main()
     do_update2 = need_update(FLASH_ID_APPL, APPL_VERSION, "Ultimate application");
 
     if(virgin) {
-        program_flash(do_update1, do_update2, true);
+        program_flash(true, true, true);
     } else if(do_update1 || do_update2) {
         if(user_interface->popup("Update required. Continue?", BUTTON_YES | BUTTON_NO) == BUTTON_YES) {
-            program_flash(do_update1, do_update2, false);
+            program_flash(true, true, true);
         }
     } else {
-        int response = user_interface->popup("Update NOT required. Force?", BUTTON_ALL | BUTTON_YES | BUTTON_NO);
-        if(response == BUTTON_ALL) {
+        int response = user_interface->popup("Update NOT required. Force?", BUTTON_YES | BUTTON_NO);
+        if(response == BUTTON_YES) {
             program_flash(true, true, true);
-        } else if(response == BUTTON_YES) {
-            program_flash(false, true, false);
         }
 	}
 

@@ -1,8 +1,9 @@
 
 include ../common/environment.mk
 
-PRJ      =  revert
-FINAL    =  $(RESULT)/$(PRJ).u2u
+PRJ        =  revert
+FINAL      =  $(RESULT)/$(PRJ).u2u
+LINKMETHOD = ld
 
 LEGACY = ../../../legacy/2.6k
 1ST_BOOT = $(LEGACY)/target/software/1st_boot
@@ -76,6 +77,8 @@ SRCS_IEC =
 
 SRCS_NANO = 
 
+VPATH   += $(PATH_SW)/FreeRTOS/Source/portable/microblaze
+VPATH   += $(PATH_SW)/portable/microblaze
 VPATH   += $(PATH_SW)/application/mb_update
 VPATH   += $(2ND_BOOT)/result
 VPATH   += $(ULTIMATE)/result
@@ -84,10 +87,8 @@ PATH_INC =  $(addprefix -I, $(LEGACY)/software/application $(VPATH) $(OUTPUT))
 APP_OPTS = -D_NO_FILE_ACCESS -DFIRST_WRITABLE_PAGE=0 
 COPTIONS = -g -ffunction-sections -Os -std=c99 $(APP_OPTS)
 CPPOPT   = -g -ffunction-sections -Os -fno-exceptions -fno-rtti -fno-threadsafe-statics $(APP_OPTS)
+OPTIONS  = -nostartfiles
 LINK 	 = ./mb_update.lds
-LLIB     =  -L $(TOOLCHAIN)/microblaze-xilinx-elf/lib \
-            -L $(TOOLCHAIN)/lib/gcc/microblaze-xilinx-elf/4.1.2
-LIBS     =  -lc -lgcc 
 LFLAGS   = --gc-sections 
 
 

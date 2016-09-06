@@ -11,17 +11,20 @@ use work.cart_slot_pkg.all;
 
 entity slot_server_v4 is
 generic (
+    g_clock_freq    : natural := 50_000_000;
     g_tag_slot      : std_logic_vector(7 downto 0) := X"08";
     g_tag_reu       : std_logic_vector(7 downto 0) := X"10";
     g_ram_base_reu  : unsigned(27 downto 0) := X"1000000"; -- should be on 16M boundary, or should be limited in size
     g_ram_base_cart : unsigned(27 downto 0) := X"0F70000"; -- should be on a 64K boundary
     g_rom_base_cart : unsigned(27 downto 0) := X"0F80000"; -- should be on a 512K boundary
+    g_big_endian    : boolean;
     g_control_read  : boolean := true;
     g_command_intf  : boolean := true;
     g_ram_expansion : boolean := true;
     g_extended_reu  : boolean := false;
     g_sampler       : boolean := false;
     g_implement_sid : boolean := true;
+    g_sid_filter_div: natural := 221;
     g_sid_voices    : natural := 3;
     g_vic_copper    : boolean := false );
 
@@ -59,10 +62,10 @@ port (
     freezer_state   : out   std_logic_vector(1 downto 0);
 
     -- audio output
-    sid_pwm_left    : out   std_logic := '0';
-    sid_pwm_right   : out   std_logic := '0';
-    samp_pwm_left   : out   std_logic := '0';
-    samp_pwm_right  : out   std_logic := '0';
+    sid_left         : out signed(17 downto 0);
+    sid_right        : out signed(17 downto 0);
+    samp_left        : out signed(17 downto 0);
+    samp_right       : out signed(17 downto 0);
 
     -- timing output
     phi2_tick       : out   std_logic;
@@ -70,8 +73,8 @@ port (
 	
     -- master on memory bus
     memctrl_inhibit : out   std_logic;
-    mem_req         : out   t_mem_req;
-    mem_resp        : in    t_mem_resp;
+    mem_req         : out   t_mem_req_32;
+    mem_resp        : in    t_mem_resp_32;
     
     -- slave on io bus
     io_req          : in    t_io_req;
@@ -179,23 +182,23 @@ architecture structural of slot_server_v4 is
     signal slot_resp_cmd    : t_slot_resp := c_slot_resp_init;
     signal slot_resp_samp   : t_slot_resp := c_slot_resp_init;
     
-    signal mem_req_slot     : t_mem_req   := c_mem_req_init; 
-    signal mem_resp_slot    : t_mem_resp  := c_mem_resp_init;
     signal mem_req_reu      : t_mem_req   := c_mem_req_init; 
     signal mem_resp_reu     : t_mem_resp  := c_mem_resp_init;
     signal mem_req_samp     : t_mem_req   := c_mem_req_init;
     signal mem_resp_samp    : t_mem_resp  := c_mem_resp_init;
+
+    signal mem_req_32_slot  : t_mem_req_32  := c_mem_req_32_init; 
+    signal mem_resp_32_slot : t_mem_resp_32 := c_mem_resp_32_init;
+    signal mem_req_32_reu   : t_mem_req_32  := c_mem_req_32_init; 
+    signal mem_resp_32_reu  : t_mem_resp_32 := c_mem_resp_32_init;
+    signal mem_req_32_samp  : t_mem_req_32  := c_mem_req_32_init;
+    signal mem_resp_32_samp : t_mem_resp_32 := c_mem_resp_32_init;
     
 --    signal mem_req_trace    : t_mem_req;
 --    signal mem_resp_trace   : t_mem_resp;
     
     signal mem_rack_slot    : std_logic;
     signal mem_dack_slot    : std_logic;
-
-    signal sid_sample_left  : signed(17 downto 0);
-    signal sid_sample_right : signed(17 downto 0);
-    signal sample_L         : signed(17 downto 0);
-    signal sample_R         : signed(17 downto 0);
 
     signal phi2_tick_avail  : std_logic;
     signal stand_alone_tick : std_logic;
@@ -303,11 +306,14 @@ begin
         do_probe_end    => do_probe_end,
         do_io_event     => do_io_event );
 
-    mem_req_slot.tag <= g_tag_slot;
-    mem_rack_slot <= '1' when mem_resp_slot.rack_tag = g_tag_slot else '0';
-    mem_dack_slot <= '1' when mem_resp_slot.dack_tag = g_tag_slot else '0';
+    mem_req_32_slot.tag <= g_tag_slot;
+    mem_req_32_slot.byte_en <= "1000" when g_big_endian else "0001";
+    mem_rack_slot <= '1' when mem_resp_32_slot.rack_tag = g_tag_slot else '0';
+    mem_dack_slot <= '1' when mem_resp_32_slot.dack_tag = g_tag_slot else '0';
 
     i_slave: entity work.slot_slave
+    generic map (
+        g_big_endian => g_big_endian )
     port map (
         clock           => clock,
         reset           => reset,
@@ -328,14 +334,12 @@ begin
         DATA_tri        => slave_dtri,
     
         -- interface with memory controller
-        mem_req         => mem_req_slot.request,
-        mem_rwn         => mem_req_slot.read_writen,
-        mem_wdata       => mem_req_slot.data,
-        mem_size        => mem_req_slot.size,
+        mem_req         => mem_req_32_slot.request,
+        mem_rwn         => mem_req_32_slot.read_writen,
+        mem_wdata       => mem_req_32_slot.data,
         mem_rack        => mem_rack_slot,
         mem_dack        => mem_dack_slot,
-        mem_rdata       => mem_resp_slot.data,
-        mem_count       => mem_resp.count,
+        mem_rdata       => mem_resp_32_slot.data,
         -- mem_addr comes from cartridge logic
     
         -- synchronized outputs
@@ -451,7 +455,7 @@ begin
         slot_req        => slot_req,
         slot_resp       => slot_resp_cart,
 
-        mem_addr        => mem_req_slot.address, 
+        mem_addr        => mem_req_32_slot.address, 
         serve_enable    => serve_enable,
         serve_vic       => serve_vic,
         serve_rom       => serve_rom, -- ROML or ROMH
@@ -493,6 +497,7 @@ begin
 
         i_sid: entity work.sid_peripheral
         generic map (
+            g_filter_div  => g_sid_filter_div,
             g_num_voices  => g_sid_voices )
             
         port map (
@@ -506,34 +511,8 @@ begin
             slot_resp    => slot_resp_sid,
         
             start_iter   => phi2_tick_avail,
-            sample_left  => sid_sample_left,
-            sample_right => sid_sample_right );
-
-        i_pdm_sid_L: entity work.sigma_delta_dac --delta_sigma_2to5
-        generic map (
-            g_left_shift => 0,
-            g_invert => true,
-            g_use_mid_only => false,
-            g_width => sid_sample_left'length )
-        port map (
-            clock   => clock,
-            reset   => reset,
-            
-            dac_in  => sid_sample_left,
-            dac_out => sid_pwm_left );
-    
-        i_pdm_sid_R: entity work.sigma_delta_dac --delta_sigma_2to5
-        generic map (
-            g_left_shift => 0,
-            g_invert => true,
-            g_use_mid_only => false,
-            g_width => sid_sample_right'length )
-        port map (
-            clock   => clock,
-            reset   => reset,
-            
-            dac_in  => sid_sample_right,
-            dac_out => sid_pwm_right );
+            sample_left  => sid_left,
+            sample_right => sid_right );
 
     end generate;
     
@@ -651,6 +630,7 @@ begin
 
         i_sampler: entity work.sampler
         generic map (
+            g_clock_freq    => g_clock_freq,
             g_num_voices    => 8 )
         port map (
             clock       => clock,
@@ -664,35 +644,9 @@ begin
 
             irq         => irq_samp,
             
-            sample_L    => sample_L,
-            sample_R    => sample_R,
+            sample_L    => samp_left,
+            sample_R    => samp_right,
             new_sample  => open );
-
-        i_pdm_samp_L: entity work.sigma_delta_dac --delta_sigma_2to5
-        generic map (
-            g_left_shift => 0,
-            g_invert => true,
-            g_use_mid_only => false,
-            g_width => 18 )
-        port map (
-            clock   => clock,
-            reset   => reset,
-            
-            dac_in  => sample_L,
-            dac_out => samp_pwm_left );
-    
-        i_pdm_samp_R: entity work.sigma_delta_dac --delta_sigma_2to5
-        generic map (
-            g_left_shift => 0,
-            g_invert => true,
-            g_use_mid_only => false,
-            g_width => 18 )
-        port map (
-            clock   => clock,
-            reset   => reset,
-            
-            dac_in  => sample_R,
-            dac_out => samp_pwm_right );
 
     end generate;
 
@@ -769,22 +723,45 @@ begin
         
         req         => dma_req,
         resp        => dma_resp );
+
     
-    i_mem_arb: entity work.mem_bus_arbiter_pri
+    i_conv32_reu: entity work.mem_to_mem32(route_through)
+    generic map (
+        g_big_endian => g_big_endian )
+    port map(
+        clock       => clock,
+        reset       => reset,
+        mem_req_8   => mem_req_reu,
+        mem_resp_8  => mem_resp_reu,
+        mem_req_32  => mem_req_32_reu,
+        mem_resp_32 => mem_resp_32_reu );
+
+    i_conv32_samp: entity work.mem_to_mem32(route_through)
+    generic map (
+        g_big_endian => g_big_endian )
+    port map(
+        clock       => clock,
+        reset       => reset,
+        mem_req_8   => mem_req_samp,
+        mem_resp_8  => mem_resp_samp,
+        mem_req_32  => mem_req_32_samp,
+        mem_resp_32 => mem_resp_32_samp );
+
+    i_mem_arb: entity work.mem_bus_arbiter_pri_32
     generic map (
         g_ports     => 3 )
     port map (
         clock       => clock,
         reset       => reset,
         
-        reqs(0)     => mem_req_slot,
-        reqs(1)     => mem_req_reu,
-        reqs(2)     => mem_req_samp,
+        reqs(0)     => mem_req_32_slot,
+        reqs(1)     => mem_req_32_reu,
+        reqs(2)     => mem_req_32_samp,
         
 --        reqs(3)     => mem_req_trace,
-        resps(0)    => mem_resp_slot,
-        resps(1)    => mem_resp_reu,
-        resps(2)    => mem_resp_samp,
+        resps(0)    => mem_resp_32_slot,
+        resps(1)    => mem_resp_32_reu,
+        resps(2)    => mem_resp_32_samp,
 --        resps(3)    => mem_resp_trace,
         
         req         => mem_req,

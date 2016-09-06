@@ -12,8 +12,8 @@
 #include "profiler.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "usb2.h"
 #include "dump_hex.h"
+#include "usb_base.h"
 
 SocketTest socket_test; // global that causes the object to exist
 
@@ -152,7 +152,7 @@ void SocketTest::restartThread(void *a)
     ioWrite8(ITU_IRQ_DISABLE, 0xFF);
     ioWrite8(ITU_IRQ_CLEAR, 0xFF);
 
-    asm("bralid r15, 8"); // restart!
+//    asm("bralid r15, 8"); // restart!
     asm("nop");
 }
 

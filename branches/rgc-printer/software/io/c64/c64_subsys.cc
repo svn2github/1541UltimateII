@@ -16,8 +16,12 @@ cart_def boot_cart = { 0x00, (void *)0, 0x1000, 0x01 | CART_REU | CART_RAM };
 
 static inline uint16_t le2cpu(uint16_t p)
 {
+#if NIOS
+	return p;
+#else
 	uint16_t out = (p >> 8) | (p << 8);
 	return out;
+#endif
 }
 
 C64_Subsys::C64_Subsys(C64 *machine)  : SubSystem(SUBSYSID_C64) {
@@ -57,7 +61,7 @@ void C64_Subsys :: poll(void *a)
 
 	static uint8_t button_prev;
 	while(1) {
-		uint8_t buttons = ioRead8(ITU_IRQ_ACTIVE) & ITU_BUTTONS;
+		uint8_t buttons = ioRead8(ITU_BUTTON_REG) & ITU_BUTTONS;
 		if((buttons & ~button_prev) & ITU_BUTTON1) {
 			c64->buttonPushSeen = true;
 		}
@@ -161,10 +165,13 @@ int C64_Subsys :: executeCommand(SubsysCommand *cmd)
     case C64_DRIVE_LOAD:
     	dma_load(0, cmd->filename.c_str(), cmd->mode);
     	break;
+    case C64_STOP_COMMAND:
+		c64->stop(false);
+		break;
     case MENU_C64_HARD_BOOT:
 		c64->flash->reboot(0);
 		break;
-	default:
+    default:
 		break;
 	}
 
@@ -256,9 +263,11 @@ int C64_Subsys :: dma_load(File *f, const char *name, uint8_t run_code, uint16_t
 
 int C64_Subsys :: load_file_dma(File *f, uint16_t reloc)
 {
-	uint8_t dma_load_buffer[512];
+	uint32_t dma_load_buffer[128];
     uint32_t transferred = 0;
     uint16_t load_address = 0;
+    uint8_t  *dma_load_buffer_b;
+    dma_load_buffer_b = (uint8_t *)dma_load_buffer;
 
     if (f) {
         f->read(&load_address, 2, &transferred);
@@ -290,11 +299,11 @@ int C64_Subsys :: load_file_dma(File *f, uint16_t reloc)
 		total_trans += transferred;
 		volatile uint8_t *d = dest;
 		for (int i=0;i<transferred;i++) {
-			*(d++) = dma_load_buffer[i];
+			*(d++) = dma_load_buffer_b[i];
 		}
 		d = dest;
 		for (int i=0; i<transferred; i++, d++) {
-			if (*d != dma_load_buffer[i]) {
+			if (*d != dma_load_buffer_b[i]) {
 				printf("Verify error: %b <> %b @ %7x\n", *d, dma_load_buffer[i], d);
 			}
 		}

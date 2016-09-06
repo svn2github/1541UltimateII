@@ -86,7 +86,7 @@ MpsPrinter::MpsPrinter(char * filename)
 #ifndef NOT_ULTIMATE
     fm = FileManager :: getFileManager();
     path = fm->get_new_path("mps_printer");
-    if (filename == NULL) filename = (char *) "/SD/mps";
+    if (filename == NULL) filename = (char *) FS_ROOT "mps";
 #else
     if (filename == NULL) filename = (char *) "mps";
 #endif

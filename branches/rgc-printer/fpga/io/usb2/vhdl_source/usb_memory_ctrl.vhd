@@ -3,6 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 use work.mem_bus_pkg.all;
+use work.endianness_pkg.all;
 
 -- This module performs the memory operations that are instructed
 -- by the nano_cpu. This controller copies data to or from a
@@ -11,6 +12,7 @@ use work.mem_bus_pkg.all;
 
 entity usb_memory_ctrl is
 generic (
+    g_big_endian   : boolean;
     g_tag          : std_logic_vector(7 downto 0) := X"55" );
 
 port (
@@ -40,11 +42,12 @@ port (
 end entity;
 
 architecture gideon of usb_memory_ctrl is
-    type t_state is (idle, reading, writing, init);
+    type t_state is (idle, reading, writing, data_wait, prefetch, init);
     signal state            : t_state;
     signal mem_addr_r       : unsigned(25 downto 0) := (others => '0');
     signal mem_addr_i       : unsigned(25 downto 2) := (others => '0');
     signal ram_addr_i       : unsigned(8 downto 2) := (others => '0');
+    signal size_r           : unsigned(1 downto 0) := "00";
     signal mreq             : std_logic := '0';
     signal rwn              : std_logic := '1';
     signal addr_do_load     : std_logic := '0';
@@ -60,6 +63,7 @@ architecture gideon of usb_memory_ctrl is
     signal rdata_valid      : std_logic;
     signal first_req        : std_logic;
     signal last_req         : std_logic;
+    signal mem_rdata_le     : std_logic_vector(31 downto 0);
 begin
     mem_req.tag(7)          <= last_req;
     mem_req.tag(6)          <= first_req;
@@ -73,21 +77,30 @@ begin
     -- pop from fifo when we process the access
     cmd_ack <= '1' when (state = idle) and (cmd_valid='1') else '0';
 
-    process(buffer_idx, state, mreq, mem_resp, ram_addr_i)
+    process(buffer_idx, state, mreq, mem_resp, ram_addr_i, ram_we_i)
     begin
         ram_addr  <= buffer_idx & std_logic_vector(ram_addr_i);
         ram_en <= '0';
-
+        
         -- for writing to memory, we enable the BRAM only when we are going to set
         -- the request, such that the data and the request comes at the same time
         case state is
+        when prefetch =>
+            ram_en <= '1';
+
         when writing =>
-            if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) or (mreq = '0') then
+            if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) then
                 ram_en <= '1';
             end if;
+            
         when others =>
             null;
         end case;
+
+        rem_do_dec <= '0';
+        if mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0) then
+            rem_do_dec <= '1';
+        end if;
         
         -- for reading from memory, it doesn't matter in which state we are:
         if ram_we_i /= "0000" then
@@ -99,7 +112,6 @@ begin
     process(clock)
     begin
         if rising_edge(clock) then
-            rem_do_dec <= '0';
             case state is
             when idle =>
                 rwn <= '1';
@@ -115,8 +127,10 @@ begin
                             new_addr <= '1';
                         when X"2" =>
                             rwn <= '0';
+                            size_r <= unsigned(cmd_wdata(1 downto 0));
                             state <= init;
                         when X"3" => 
+                            size_r <= unsigned(cmd_wdata(1 downto 0));
                             state <= init;
                         when X"4" =>
                             buffer_idx <= cmd_wdata(15 downto 14);
@@ -129,40 +143,43 @@ begin
             when init =>
                 new_addr <= '0';
                 ram_addr_i <= (others => '0');
+                first_req <= '1';
                 if rwn='1' then
+                    mreq <= '1';
                     state <= reading;
                 else
-                    state <= writing;
+                    state <= prefetch;
                 end if;
             
             when reading =>
-                rwn <= '1';
-                if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) or (mreq = '0') then
-                    if remain_is_0 = '1' then
-                        state <= idle;
+                if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) then
+                    first_req <= '0';
+                    if last_req = '1' then
+                        state <= data_wait;
                         cmd_done <= '1';
                         mreq <= '0';
-                    else
-                        first_req <= not mreq;
-                        last_req <= remain_is_1;
-                        mreq <= '1';
-                        rem_do_dec <= '1';
                     end if;
                 end if;
     
+            when data_wait =>
+                -- just wait until we get a tag on data valid that indicates the last dataword of the transfer
+                if rdata_valid = '1' and mem_resp.dack_tag(7) = '1' then
+                    state <= idle;
+                end if;
+
+            when prefetch =>
+                mreq <= '1';
+                ram_addr_i <= ram_addr_i + 1;
+                state <= writing;
+                
             when writing =>
-                rwn <= '0';
-                if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) or (mreq = '0') then
+                if (mem_resp.rack='1' and mem_resp.rack_tag(5 downto 0) = g_tag(5 downto 0)) then
+                    first_req <= '0';
                     ram_addr_i <= ram_addr_i + 1;
-                    if remain_is_0 = '1' then
+                    if remain_is_1 = '1' then
                         state <= idle;
                         cmd_done <= '1';
                         mreq <= '0';
-                    else
-                        first_req <= not mreq;
-                        last_req <= remain_is_1;
-                        mreq <= '1';
-                        rem_do_dec <= '1';
                     end if;
                 end if;
 
@@ -209,16 +226,21 @@ begin
         remain_is_1 => remain_is_1,
         remain_is_0 => remain_is_0 );
 
+    last_req <= remain_is_1;
     rdata_valid <= '1' when mem_resp.dack_tag(5 downto 0) = g_tag(5 downto 0) else '0';
+    
+    mem_rdata_le <= byte_swap(mem_resp.data, g_big_endian);
     
     i_align: entity work.align_read_to_bram
     port map (
         clock       => clock,
-        rdata       => mem_resp.data,
+        reset       => reset,
+        rdata       => mem_rdata_le,
         rdata_valid => rdata_valid,
         first_word  => mem_resp.dack_tag(6),
         last_word   => mem_resp.dack_tag(7),
         offset      => mem_addr_r(1 downto 0),
+        last_bytes  => size_r,
         wdata       => ram_wdata,
         wmask       => ram_we_i,
         wnext       => ram_wnext );

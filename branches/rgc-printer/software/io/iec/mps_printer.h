@@ -59,6 +59,12 @@
 #define MPS_PRINTER_SCRIPT_SUPER            2
 #define MPS_PRINTER_SCRIPT_SUB              4
 
+#ifdef NIOS
+#define FS_ROOT "/USB/"
+#else
+#define FS_ROOT "/SD/"
+#endif
+
 /******************************  Debug macros  **************************/
 
 /* Uncomment to enable debug messages to serial port */

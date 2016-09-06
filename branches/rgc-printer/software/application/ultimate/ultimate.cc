@@ -31,6 +31,7 @@
 #include "init_function.h"
 #include "stream_uart.h"
 #include "stream_textlog.h"
+#include "dump_hex.h"
 
 // these should move to main_loop.h
 extern "C" void main_loop(void *a);
@@ -53,10 +54,12 @@ void outbyte_log(int c)
 	textLog.charout(c);
 }
 
-int main(void *a)
+
+extern "C" void ultimate_main(void *a)
 {
-	char time_buffer[32];
-	uint32_t capabilities = getFpgaCapabilities();
+    char time_buffer[32];
+
+    uint32_t capabilities = getFpgaCapabilities();
 
 	printf("*** 1541 Ultimate V3.0 ***\n");
     printf("*** FPGA Capabilities: %8x ***\n\n", capabilities);
@@ -72,8 +75,15 @@ int main(void *a)
     c64 = new C64;
     c64_subsys = new C64_Subsys(c64);
 
+    char title[48];
+    if(capabilities & CAPAB_ULTIMATE2PLUS) {
+    	sprintf(title, "\eA*** Ultimate-II Plus %s (1%b) ***\eO", APPL_VERSION, getFpgaVersion());
+    } else {
+    	sprintf(title, "\eA**** 1541 Ultimate %s (%b) ****\eO", APPL_VERSION, getFpgaVersion());
+    }
+
     if(c64 && c64->exists()) {
-        ui = new UserInterface;
+        ui = new UserInterface(title);
         ui->init(c64);
 
     	// Instantiate and attach the root tree browser
@@ -88,13 +98,14 @@ int main(void *a)
     } else if(capabilities & CAPAB_OVERLAY) {
         printf("Using Overlay module as user interface...\n");
         overlay = new Overlay(false);
-        ui = new UserInterface;
+        ui = new UserInterface(title);
         ui->init(overlay);
         Browsable *root = new BrowsableRoot();
     	root_tree_browser = new TreeBrowser(ui, root);
         ui->activate_uiobject(root_tree_browser); // root of all evil!
     } else {
     	// from now on, log to memory, freeing the uart
+/*
     	custom_outbyte = outbyte_log;
 
     	Stream *stream = new Stream_UART;
@@ -105,18 +116,9 @@ int main(void *a)
         Browsable *root = new BrowsableRoot();
     	root_tree_browser = new TreeBrowser(ui, root);
         ui->activate_uiobject(root_tree_browser); // root of all evil!
-    }
-/*
-    else {
-        Stream *stream = new Stream_UART;
-    	// stand alone mode
-        printf("Using Stream module as user interface...\n");
-        UserInterfaceStream *ui_str = new UserInterfaceStream(stream);
-        root_menu = new StreamMenu(ui_str, stream, new BrowsableRoot());
-        ui_str->set_menu(root_menu); // root of all evil!
-        ui = ui_str;
-    }
 */
+    }
+
 
     if(capabilities & CAPAB_C2N_STREAMER)
 	    tape_controller = new TapeController;
@@ -143,6 +145,20 @@ int main(void *a)
 
     if(ui) {
     	ui->run();
+    } else {
+    	vTaskDelay(2000);
+    	printf("Attempting to write a test file to /Usb0.\n");
+    	FileManager *fm = FileManager :: getFileManager();
+    	File *file;
+    	FRESULT fres;
+    	DWORD tr;
+    	fres = fm->fopen("/Usb0/testje.txt", FA_CREATE_NEW|FA_CREATE_ALWAYS|FA_WRITE, &file);
+    	printf("%s\n", FileSystem :: get_error_string(fres) );
+    	if (fres == FR_OK) {
+    		file->write(buffer, 8192, &tr);
+    		fm->fclose(file);
+    	}
+    	vTaskSuspend(NULL); // Stop main task and wait forever
     }
 
     custom_outbyte = 0; // stop logging
@@ -175,7 +191,5 @@ int main(void *a)
 	    delete tape_recorder;
     
     printf("Graceful exit!!\n");
-    return 0;
+//    return 0;
 }
-
-

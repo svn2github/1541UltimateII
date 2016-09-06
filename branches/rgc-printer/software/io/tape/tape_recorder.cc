@@ -4,6 +4,7 @@
 #include "tape_recorder.h"
 #include "userinterface.h"
 #include "filemanager.h"
+#include "c64.h"
 
 extern "C" {
     #include "dump_hex.h"
@@ -11,9 +12,6 @@ extern "C" {
 
 TapeRecorder *tape_recorder = NULL; // globally static
 
-#define MENU_REC_SAMPLE_TAPE   0x3211
-#define MENU_REC_RECORD_TO_TAP 0x3212
-#define MENU_REC_FINISH        0x3213
 
 extern "C" BaseType_t tape_recorder_irq(void)
 {
@@ -23,12 +21,16 @@ extern "C" BaseType_t tape_recorder_irq(void)
     return pdFALSE; // it will get polled, no immediate action
 }
 
-__inline uint32_t cpu_to_le_32(uint32_t a)
+__inline uint32_t cpu_to_32le(uint32_t a)
 {
-    uint32_t m1, m2;
+#ifdef NIOS
+	return a;
+#else
+	uint32_t m1, m2;
     m1 = (a & 0x00FF0000) >> 8;
     m2 = (a & 0x0000FF00) << 8;
     return (a >> 24) | (a << 24) | m1 | m2;
+#endif
 }
 
 TapeRecorder :: TapeRecorder() : SubSystem(SUBSYSID_TAPE_RECORDER)
@@ -60,16 +62,40 @@ TapeRecorder :: ~TapeRecorder()
 	
 int TapeRecorder :: executeCommand(SubsysCommand *cmd)
 {
-	last_user_interface = cmd->user_interface;
+	if (cmd->user_interface) {
+		last_user_interface = cmd->user_interface;
+	}
+	UserInterface *ui = (UserInterface *)last_user_interface;
+	SubsysCommand *c64_command;
 
 	switch(cmd->functionID) {
 		case MENU_REC_FINISH:
 			flush();
+			if (ui) {
+				if (!ui->is_available()) {
+					ui->appear();
+					vTaskDelay(30);
+				}
+				if (ui->is_available()) {
+					ui->popup("Tape capture stopped.", BUTTON_OK);
+				} else {
+					printf("Damn user interface is not available!\n");
+				}
+			}
 			break;
 		case MENU_REC_SAMPLE_TAPE:
 			select = 0;
-			if(request_file(cmd))
+			if(request_file(cmd)) {
+				if (ui->is_available()) {
+					ui->popup("Start tape when back in C64 screen", BUTTON_OK);
+				} else {
+					printf("Damn user interface is not available!\n");
+				}
+				c64_command = new SubsysCommand(cmd->user_interface, SUBSYSID_C64,
+	            		C64_UNFREEZE, 0, "", "");
+	            c64_command->execute();
 				start();
+			}
 			break;
 		case MENU_REC_RECORD_TO_TAP:
 			select = 1;
@@ -225,7 +251,7 @@ void TapeRecorder :: flush()
 		total_length += bytes_written;
     }
     file->seek(16);
-    uint32_t le_size = cpu_to_le_32(total_length);
+    uint32_t le_size = cpu_to_32le(total_length);
     file->write(&le_size, 4, &bytes_written);
 
 	fm->fclose(file);
@@ -249,9 +275,6 @@ void TapeRecorder :: poll()
 
 	printf("** tape recorder this = %p\n", this);
 	while(1) {
-		if (this != aap)
-			PROFILER_SUB = 14;
-
 		if(error_code != REC_ERR_OK) {
 			PROFILER_SUB = 15;
 			if (last_user_interface) {

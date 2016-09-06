@@ -23,8 +23,8 @@ ALL_ULTIMATE_LOGIC := \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/synchroniser/vhdl_source/level_synchronizer.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/synchroniser/vhdl_source/pulse_synchronizer.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/async_fifo/vhdl_source/gray_code_pkg.vhd \
-				vhdl,work,$(ULTIMATE_FPGA)/ip/async_fifo/vhdl_source/async_fifo.vhd \
-				vhdl,work,$(ULTIMATE_FPGA)/ip/fall_through/vhdl_source/fall_through_add_on.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/ip/async_fifo/vhdl_source/async_fifo_ft.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/ip/memory/vhdl_source/spram.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/memory/vhdl_source/dpram.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/memory/vhdl_source/dpram_io.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/video/vhdl_source/char_generator_pkg.vhd \
@@ -38,6 +38,8 @@ ALL_ULTIMATE_LOGIC := \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/nano_cpu/vhdl_source/nano_alu.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/nano_cpu/vhdl_source/nano_cpu.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/ip/nano_cpu/vhdl_source/nano.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/ip/free_queue/vhdl_source/block_bus_pkg.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/ip/free_queue/vhdl_source/free_queue.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/audio_select/vhdl_source/audio_select.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/uart_lite/vhdl_source/tx.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/uart_lite/vhdl_source/rx.vhd \
@@ -55,6 +57,12 @@ ALL_ULTIMATE_LOGIC := \
 				vhdl,work,$(ULTIMATE_FPGA)/io/mem_ctrl/vhdl_source/ext_mem_ctrl_v4b.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/mem_ctrl/vhdl_source/ext_mem_ctrl_v5.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/spike_filter/vhdl_source/spike_filter.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/rmii_transceiver.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/crc32.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/eth_filter.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/eth_transmit.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/packet_generator.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/io/rmii/vhdl_source/ethernet_rmii.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/data_crc.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/timer.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/host_sequencer.vhd \
@@ -74,7 +82,7 @@ ALL_ULTIMATE_LOGIC := \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/mem_addr_counter.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/mem_remain_counter.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/usb_memory_ctrl.vhd \
-				vhdl,work,$(ULTIMATE_FPGA)/ip/busses/vhdl_source/align_read_to_bram.vhd \
+				vhdl,work,$(ULTIMATE_FPGA)/altera/align_read_to_bram.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/usb2/vhdl_source/usb_pkg.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/itu/vhdl_source/itu_pkg.vhd \
 				vhdl,work,$(ULTIMATE_FPGA)/io/itu/vhdl_source/itu.vhd \

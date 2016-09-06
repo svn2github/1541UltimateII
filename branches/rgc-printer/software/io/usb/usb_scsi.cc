@@ -13,10 +13,14 @@ extern "C" {
 
 __inline uint32_t cpu_to_32le(uint32_t a)
 {
-    uint32_t m1, m2;
+#ifdef NIOS
+	return a;
+#else
+	uint32_t m1, m2;
     m1 = (a & 0x00FF0000) >> 8;
     m2 = (a & 0x0000FF00) << 8;
     return (a >> 24) | (a << 24) | m1 | m2;
+#endif
 }
 
 uint8_t c_scsi_getmaxlun[] = { 0xA1, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00 };
@@ -92,14 +96,17 @@ void UsbScsiDriver :: install(UsbDevice *dev)
 	printf("Installing '%s %s'\n", dev->manufacturer, dev->product);
 
 	dev->set_configuration(dev->get_device_config()->config_value);
-	dev->set_interface(0);
+	dev->set_interface(dev->interfaces[0]->interface_number, dev->interfaces[0]->alternate_setting);
 
 	max_lun = get_max_lun(dev);
 	printf("max lun = %d\n", max_lun);
 
 	// Initialize standard command structures
 	memset(&cbw, 0, sizeof(cbw));
-    cbw.signature = 0x55534243;
+    cbw.signature[0] = 0x55;
+    cbw.signature[1] = 0x53;
+    cbw.signature[2] = 0x42;
+    cbw.signature[3] = 0x43;
 
     struct t_endpoint_descriptor *bin = dev->find_endpoint(0x82);
     struct t_endpoint_descriptor *bout = dev->find_endpoint(0x02);
@@ -231,9 +238,10 @@ UsbScsi :: ~UsbScsi()
 
 void UsbScsi :: reset(void)
 {
-    uint8_t buf[8];
     
+/*
     if(lun == 0) {
+    	uint8_t buf[8];
 		printf("Executing reset...\n");
 		int i = driver->device->host->control_exchange(&(driver->device->control_pipe),
 									   c_scsi_reset, 8,
@@ -241,6 +249,7 @@ void UsbScsi :: reset(void)
 
 		printf("Device reset. (returned %d bytes)\n", i);
     }
+*/
 
 	set_state(e_device_unknown);
 
@@ -256,7 +265,7 @@ int UsbScsiDriver :: status_transport(bool do_bulk_in=true)
 {
 	uint32_t *signature = (uint32_t *)stat_resp;
 	*signature = 0;
-	int len;
+	int len = 0;
 	uint8_t buf[8];
 	bool do_reset = false;
 
@@ -266,8 +275,20 @@ int UsbScsiDriver :: status_transport(bool do_bulk_in=true)
 		len = 13; // has already been received in error
 	}
 
+	if (len == -4) { // Pipe stalled
+		printf("Stall detected on status read. Clearing stall condition.\n");
+		len = device->unstall_pipe((uint8_t)(bulk_in.DevEP & 0xFF));
+	    bulk_in.Command = 0; // reset toggle
+		if (len < 0) {
+			printf("Clear stall condition failed. %d\n", len);
+			return len;
+		}
+		len = host->bulk_in(&bulk_in, stat_resp, 13);
+		printf("Retry: %d\n", len);
+ 	}
+
 	int i;
-	if((len != 13)||(*signature != 0x55534253)) {
+	if((len != 13)||(stat_resp[0] != 0x55)||(stat_resp[1] != 0x53)||(stat_resp[2] != 0x42)||(stat_resp[3] != 0x53)) {
 		printf("Invalid status (len = %d, signature = %8x)... performing reset..\n", len, *signature);
 		do_reset = true;
 	} else if(stat_resp[12] == 2) {
@@ -278,14 +299,27 @@ int UsbScsiDriver :: status_transport(bool do_bulk_in=true)
 	if (!do_reset)
 		return (int)stat_resp[12]; // OK, or other error
 
-	i =  host->control_exchange(&(device->control_pipe),
-								c_scsi_reset, 8,
-								buf, 8);
+	i = mass_storage_reset();
 
 	if(i != 0)
 		return -2; // reset failed
 
 	return 0; // OK
+}
+
+int UsbScsiDriver :: mass_storage_reset()
+{
+	uint8_t buf[8];
+
+	printf("Executing reset...\n");
+	c_scsi_reset[4] = device->interface_number;
+	int i =  host->control_exchange(&(device->control_pipe),
+								    c_scsi_reset, 8,
+								    buf, 8);
+
+	printf("Device reset. (returned %d bytes)\n", i);
+
+	return i;
 }
 
 int UsbScsiDriver :: request_sense(int lun, bool debug)
@@ -410,7 +444,7 @@ int UsbScsiDriver :: exec_command(int lun, int cmdlen, bool out, uint8_t *cmd, i
 				printf("%d data bytes received:\n", len);
 				dump_hex(data, len);
 			}
-			if (len < 0) {
+			if (len == -4) {
 				printf("In Pipe stalled. Unstalling pipe, and reading status.\n");
 			    device->unstall_pipe((uint8_t)(bulk_in.DevEP & 0xFF));
 			    bulk_in.Command = 0; // reset toggle
@@ -428,6 +462,11 @@ int UsbScsiDriver :: exec_command(int lun, int cmdlen, bool out, uint8_t *cmd, i
 
     /* STATUS PHASE */
     st = status_transport(read_status);
+    if (st == -4) {
+    	printf("Stalled. Unstalling Endpoint\n");
+    	device->unstall_pipe((uint8_t)(bulk_in.DevEP & 0xFF));
+	    bulk_in.Command = 0; // reset toggle
+    }
 
 	xSemaphoreGive(mutex);
 	if(st == 1) {
@@ -443,7 +482,9 @@ int UsbScsiDriver :: exec_command(int lun, int cmdlen, bool out, uint8_t *cmd, i
 
 void UsbScsi :: inquiry(void)
 {
-    uint8_t response[64];
+    uint32_t resp_buffer[16];
+    uint8_t *response = (uint8_t *)resp_buffer;
+
     int len, i;
 
     driver->device->get_pathname(name, 13);
@@ -455,7 +496,7 @@ void UsbScsi :: inquiry(void)
     uint8_t inquiry_command[6] = { 0x12, 0, 0, 0, 36, 0 };
     //inquiry_command[1] = BYTE(lun << 5);
 
-    if((len = driver->exec_command(lun, 6, false, inquiry_command, 36, response, false)) < 0) {
+    if((len = driver->exec_command(lun, 6, false, inquiry_command, 36, response, true)) < 0) {
     	printf("Inquiry failed. %d\n", len);
     	initialized = false; // don't try again
     	return;
@@ -518,9 +559,9 @@ DRESULT UsbScsi :: read_capacity(uint32_t *num_blocks, uint32_t *blk_size)
     int stat = driver->exec_command(lun, 10, false, read_cap_command, 8, buf, false);
     
     if(stat >= 0) {
-        memcpy(num_blocks, &buf[0], 4);
+    	*num_blocks = LD_DWORD_BE(&buf[0]);
         ++(*num_blocks);
-        memcpy(blk_size, &buf[4], 4);
+        *blk_size = LD_DWORD_BE(&buf[4]);
         printf("Block Size: %d. Num Blocks: %d\n", *blk_size, *num_blocks);
         this->block_size = int(*blk_size);
         this->capacity   = *num_blocks;
@@ -801,8 +842,7 @@ DRESULT UsbScsi :: read(uint8_t *buf, uint32_t sector, int num_sectors)
 
     ioWrite8(ITU_USB_BUSY, 1);
 //    for(int s=0;s<num_sectors;s++) {
-        //ST_DWORD(&cbw.cmd[2], sector);
-        memcpy(&read_10_command[2], &sector, 4);
+        ST_DWORD_BE(&read_10_command[2], sector);
         
         for(int retry=0;retry<10;retry++) {
             if(driver->exec_command(lun, 10, false, read_10_command, block_size*num_sectors, buf, false) != block_size*num_sectors) {
@@ -836,8 +876,7 @@ DRESULT UsbScsi :: write(const uint8_t *buf, uint32_t sector, int num_sectors)
 
     //printf("USB: Writing %d sectors from %d.\n", num_sectors, sector);
 //    for(int s=0;s<num_sectors;s++) {
-        //ST_DWORD(&cbw.cmd[2], sector);
-        memcpy(&write_10_command[2], &sector, 4);
+        ST_DWORD_BE(&write_10_command[2], sector);
 
         for(int retry=0;retry<10;retry++) {
         	len = driver->exec_command(lun, 10, true, write_10_command, block_size*num_sectors, (uint8_t *)buf, false);

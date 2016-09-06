@@ -17,6 +17,7 @@
 #include "browsable.h"
 #include "browsable_root.h"
 #include "tree_browser.h"
+#include "versions.h"
 
 SocketGui socket_gui; // global that causes us to exist
 
@@ -37,13 +38,20 @@ SocketGui :: SocketGui()
 
 void socket_gui_task(void *a)
 {
+    char title[64];
+    if(getFpgaCapabilities() & CAPAB_ULTIMATE2PLUS) {
+    	sprintf(title, "\eA*** Ultimate-II Plus %s (1%b) *** Remote ***\eO", APPL_VERSION, getFpgaVersion());
+    } else {
+    	sprintf(title, "\eA**** 1541 Ultimate %s (%b) - Remote ****\eO", APPL_VERSION, getFpgaVersion());
+    }
+
 	SocketStream *str = (SocketStream *)a;
 
 	HostStream *host = new HostStream(str);
 //	Screen *scr = host->getScreen();
 //	Keyboard *keyb = host->getKeyboard();
 
-	UserInterface *user_interface = new UserInterface();
+	UserInterface *user_interface = new UserInterface(title);
 	user_interface->init(host);
 
 	Browsable *root = new BrowsableRoot();
@@ -103,7 +111,7 @@ int SocketGui :: listenTask(void)
 		struct timeval tv;
 		tv.tv_sec = 20; // bug in lwip; this is just used directly as tick value
 		tv.tv_usec = 20;
-		setsockopt(actual_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
+		// setsockopt(actual_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,sizeof(struct timeval));
 
 		SocketStream *stream = new SocketStream(actual_socket);
 		xTaskCreate( socket_gui_task, "Socket Gui Task", configMINIMAL_STACK_SIZE, stream, tskIDLE_PRIORITY + 1, NULL );

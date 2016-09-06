@@ -30,12 +30,12 @@ private:
     void effectuate_settings(void);
 
     bool initialized;
+    mstring title;
     t_ui_state state;
 
     UIObject *ui_objects[MAX_UI_OBJECTS];
     
     void set_screen_title(void);
-    void appear(void);
     bool pollFocussed(void);
     UIStatusBox *status_box;
 public:
@@ -46,7 +46,7 @@ public:
     Screen *screen;
     int     focus;
 
-    UserInterface();
+    UserInterface(const char *title);
     virtual ~UserInterface();
 
     // from HostClient
@@ -64,6 +64,7 @@ public:
     virtual int enterSelection(void);
 
     void init(GenericHost *h);
+    void appear(void);
     void set_screen(Screen *s); /* Only used in updater */
     int  activate_uiobject(UIObject *obj);
         

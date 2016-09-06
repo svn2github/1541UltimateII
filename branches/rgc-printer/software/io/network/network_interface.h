@@ -32,6 +32,7 @@ public:
     virtual void poll() { }
     virtual void link_up() { }
     virtual void link_down() { }
+    virtual bool is_link_up() { }
     virtual void set_mac_address(uint8_t *mac) {
     	memcpy(mac_address, mac, 6);
     }
@@ -41,6 +42,7 @@ public:
 	virtual void getIpAddr(uint8_t *a)  { bzero(a, 12); }
 	virtual void getMacAddr(uint8_t *a) { bzero(a, 6); }
 	virtual void setIpAddr(uint8_t *a)  { }
+	virtual char *getIpAddrString(char *buf, int buflen) { buf[0] = 0; return buf; }
 };
 
 typedef void (*driver_free_function_t)(void *driver, void *buffer);
@@ -48,7 +50,8 @@ typedef uint8_t (*driver_output_function_t)(void *driver, void *buffer, int leng
 
 NetworkInterface *getNetworkStack(void *driver,
 								  driver_output_function_t out,
-								  driver_free_function_t free);
+								  driver_free_function_t free );
+
 void releaseNetworkStack(void *s);
 
 #define CFG_NET_DHCP_EN		0xE0
